@@ -60,15 +60,33 @@ export const manualRestore = async () => {
 export const listDriveBackups = async (accessToken) => {
   if (!accessToken) throw new Error('No access token provided');
 
-  const query = encodeURIComponent("name contains 'expense_backup_'");
-  const url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name,modifiedTime,size)&orderBy=modifiedTime desc`;
+  try {
+    const query = encodeURIComponent("name contains 'expense_backup_' and trashed=false");
+    const url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name,modifiedTime,size)&orderBy=modifiedTime desc`;
 
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`Drive list failed: ${text}`);
+    const res = await fetch(url, { 
+      headers: { 
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      } 
+    });
+    
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error('Drive API Error:', {
+        status: res.status,
+        statusText: res.statusText,
+        error: errorText
+      });
+      throw new Error(`Drive API error: ${res.status} - ${res.statusText}`);
+    }
 
-  const data = JSON.parse(text);
-  return data.files || [];
+    const data = await res.json();
+    return data.files || [];
+  } catch (error) {
+    console.error('List Drive Backups Error:', error);
+    throw error;
+  }
 };
 
 export const restoreBackupFromDrive = async (accessToken, fileId) => {

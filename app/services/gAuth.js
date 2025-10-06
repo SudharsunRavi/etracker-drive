@@ -6,18 +6,29 @@ WebBrowser.maybeCompleteAuthSession();
 
 export const useGoogleAuth = () => {
   const [token, setToken] = useState(null);
+  
+  const redirectUri = 'https://auth.expo.io/@sudharsun/etracker-drive';
 
   const [request, response, promptAsync] = Google.useAuthRequest({
-    expoClientId: '426757242953-b20uakod4tsckudlh35o7qg27tj0ks2m.apps.googleusercontent.com',
-    iosClientId: 'dummy-ios.apps.googleusercontent.com',
-    androidClientId: 'dummy-android.apps.googleusercontent.com',
-    webClientId: '426757242953-b20uakod4tsckudlh35o7qg27tj0ks2m.apps.googleusercontent.com',
+    clientId: '902213081693-1verjjh0t88jic13mmpnfsbpgt2dakt6.apps.googleusercontent.com',
     scopes: ['https://www.googleapis.com/auth/drive.file'],
+    redirectUri,
   });
 
   useEffect(() => {
+    if (request) {
+      console.log('Request URL:', request.url);
+      console.log('Request redirectUri:', request.redirectUri);
+    }
+  }, [request]);
+
+  useEffect(() => {
     if (response?.type === 'success') {
-      setToken(response.authentication.accessToken);
+      setToken(response.authentication?.accessToken);
+      console.log('Auth successful!');
+    } else if (response?.type === 'error') {
+      console.error('Auth error:', response.error);
+      console.error('Error params:', response.params);
     }
   }, [response]);
 

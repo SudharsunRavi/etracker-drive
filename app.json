@@ -3,13 +3,15 @@
     "name": "etracker-drive",
     "slug": "etracker-drive",
     "version": "1.0.0",
+    "owner": "sudharsun",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "etrackerdrive",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.sudharsun.expensetracker"
     },
     "android": {
       "adaptiveIcon": {

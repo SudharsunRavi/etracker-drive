@@ -3,7 +3,7 @@ import { View, Text, Alert, FlatList, TouchableOpacity, ActivityIndicator, Style
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../components/Button';
 import { useGoogleAuth } from '../services/gAuth';
-import { manualBackup, manualRestore, listDriveBackups, restoreBackupFromDrive } from '../services/gDrive';
+import { listDriveBackups, restoreBackupFromDrive } from '../services/gDrive';
 
 const RestoreScreen = () => {
   const { token, promptAsync } = useGoogleAuth();
