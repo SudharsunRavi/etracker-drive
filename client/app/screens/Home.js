@@ -306,6 +306,14 @@ const HomeScreen = () => {
             >
               <Text style={styles.addButtonText}>➕</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.graphButton}
+              onPress={() => router.push('/screens/Charts')}
+            >
+              <Text style={styles.graphIcon}>📊</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity
               style={styles.settingsButton}
               onPress={() => setShowSettingsModal(true)}
@@ -468,10 +476,12 @@ const styles = StyleSheet.create({
     marginVertical: 20,
   },
   title: { fontSize: 28, fontWeight: 'bold', color: '#333' },
-  settingsButton: { backgroundColor: '#f0f0f0', borderRadius: 50, padding: 8, marginLeft: 10 },
+  settingsButton: { backgroundColor: '#f0f0f0', borderRadius: 50, padding: 0, marginLeft: 10 },
   settingsIcon: { fontSize: 22 },
-  addButton: { backgroundColor: '#34C759', borderRadius: 50, padding: 8 },
+  addButton: { borderRadius: 50 },
   addButtonText: { fontSize: 22, color: '#fff' },
+  graphButton: { borderRadius: 50, padding: 8, marginLeft: 10 },
+  graphIcon: { fontSize: 22, color: '#fff' },
 
   // Summary Styles
   summaryContainer: {

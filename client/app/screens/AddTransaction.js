@@ -43,7 +43,10 @@ const AddTransactionScreen = () => {
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scrollContent}>
+          <Text style={styles.label}>Date (YYYY-MM-DD)</Text>
           <Input placeholder="Date (YYYY-MM-DD)" value={date} onChangeText={setDate} style={styles.input} />
+
+          <Text style={styles.label}>Description</Text>
           <Input placeholder="Description" value={description} onChangeText={setDescription} style={styles.input} />
 
           <Text style={styles.label}>Type</Text>
@@ -56,6 +59,7 @@ const AddTransactionScreen = () => {
             <Text style={styles.pickerButtonText}>{category}</Text>
           </TouchableOpacity>
 
+          <Text style={styles.label}>Amount</Text>
           <Input placeholder="Amount" value={amount} onChangeText={setAmount} keyboardType="numeric" style={styles.input} />
 
           <Button title="Add Transaction" onPress={handleAddTransaction} style={styles.button} />
