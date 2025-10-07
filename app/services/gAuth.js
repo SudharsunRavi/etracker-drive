@@ -1,19 +1,24 @@
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 import { useEffect, useState } from 'react';
+import * as AuthSession from 'expo-auth-session';
 
 WebBrowser.maybeCompleteAuthSession();
 
 export const useGoogleAuth = () => {
   const [token, setToken] = useState(null);
   
-  const redirectUri = 'https://auth.expo.io/@sudharsun/etracker-drive';
+  //const redirectUri = 'https://auth.expo.io/@sudharsun/etrackerdrive';
+  //console.log('Redirect URI:', AuthSession.makeRedirectUri({ scheme: 'etrackerdrive' }));
 
   const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: '902213081693-1verjjh0t88jic13mmpnfsbpgt2dakt6.apps.googleusercontent.com',
+    webClientId: '581076316369-nigghvi2i316q2mrr8kgf58nfbco2q0i.apps.googleusercontent.com',
+    iosClientId: '581076316369-60fna26mnmsmipt2m9bqjc00h9qgpau0.apps.googleusercontent.com',
     scopes: ['https://www.googleapis.com/auth/drive.file'],
-    redirectUri,
+    redirectUri: AuthSession.makeRedirectUri({ scheme: 'etrackerdrive' }),
   });
+
+  console.log('Redirect URI:', AuthSession.makeRedirectUri({ scheme: 'etrackerdrive' }));
 
   useEffect(() => {
     if (request) {
