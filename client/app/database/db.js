@@ -1,14 +1,11 @@
 import * as SQLite from 'expo-sqlite';
 
-// Open database
 export const db = SQLite.openDatabaseSync('etracker.db');
 
-// Initialize database with proper error handling
 export const initDB = async () => {
   try {
     console.log('Initializing database...');
     
-    // Use the correct API - runAsync for single queries
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -27,7 +24,6 @@ export const initDB = async () => {
   }
 };
 
-// Add transaction function
 export const addTransaction = async (amount, type, category, description, date) => {
   try {
     await db.runAsync(
@@ -42,7 +38,6 @@ export const addTransaction = async (amount, type, category, description, date) 
   }
 };
 
-// Get all transactions
 export const getTransactions = async () => {
   try {
     const result = await db.getAllAsync('SELECT * FROM transactions ORDER BY date DESC');
@@ -53,7 +48,6 @@ export const getTransactions = async () => {
   }
 };
 
-// Get transactions by type
 export const getTransactionsByType = async (type) => {
   try {
     const result = await db.getAllAsync(
