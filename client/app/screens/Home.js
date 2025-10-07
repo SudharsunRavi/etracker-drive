@@ -5,52 +5,132 @@ import {
   FlatList,
   ScrollView,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
   TouchableOpacity,
   Modal,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Input from '../components/Input';
-import Button from '../components/Button';
-import { initDB, addTransaction, getTransactions } from '../database/db';
+import { initDB, getTransactions, getAllTransactionsDebug } from '../database/db';
 import { useRouter, useFocusEffect } from 'expo-router';
 
 const HomeScreen = () => {
   const router = useRouter();
 
-  const navigateToBackup = () => router.push('/screens/Backup');
-  const navigateToRestore = () => router.push('/screens/Restore');
-
-  const [date, setDate] = useState('');
-  const [description, setDescription] = useState('');
-  const [type, setType] = useState('expense');
-  const [category, setCategory] = useState('Food');
-  const [amount, setAmount] = useState('');
   const [transactions, setTransactions] = useState([]);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const [filterType, setFilterType] = useState(null);
+  const [filterCategory, setFilterCategory] = useState(null);
+
   const [showTypePicker, setShowTypePicker] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   const categories = {
-    expense: ['Food', 'Rent', 'Entertainment', 'Transport', 'Shopping', 'Bills', 'Healthcare'],
-    income: ['Salary', 'Investment', 'Freelance', 'Gift', 'Bonus'],
+    Expense: ['Food', 'Rent', 'Entertainment', 'Transport', 'Shopping', 'Bills', 'Healthcare'],
+    Income: ['Salary', 'Investment', 'Freelance', 'Gift', 'Bonus'],
   };
 
   useEffect(() => {
-    const init = async () => {
-      await initDB();
-      loadTransactions();
+    const initializeApp = async () => {
+      try {
+        await initDB();
+        await loadTransactions();
+      } catch (error) {
+        console.error('Initialization error:', error);
+        Alert.alert('Error', 'Failed to initialize database');
+      }
     };
-    init();
+    
+    initializeApp();
   }, []);
 
+  const normalizeTransaction = (transaction) => {
+    const hasCorrectStructure = 
+      typeof transaction.amount === 'number' && 
+      (transaction.type === 'income' || transaction.type === 'expense');
+    
+    if (hasCorrectStructure) {
+      return {
+        ...transaction,
+        amount: parseFloat(transaction.amount || 0),
+        type: transaction.type.toLowerCase(),
+        category: transaction.category,
+        description: transaction.description || 'No description',
+        date: transaction.date
+      };
+    } else {
+      const amount = parseFloat(
+        typeof transaction.amount === 'number' ? transaction.amount :
+        typeof transaction.date === 'string' && !isNaN(parseFloat(transaction.date)) ? transaction.date :
+        transaction.amount || 0
+      );
+      
+      const date = 
+        typeof transaction.date === 'string' && isNaN(parseFloat(transaction.date)) ? transaction.date :
+        typeof transaction.amount === 'string' ? transaction.amount :
+        transaction.date || 'Unknown date';
+      
+      let type = 'expense';
+      if (transaction.type?.toLowerCase() === 'income' || transaction.category?.toLowerCase() === 'income') {
+        type = 'income';
+      } else if (transaction.type?.toLowerCase() === 'expense' || transaction.category?.toLowerCase() === 'expense') {
+        type = 'expense';
+      }
+      
+      const category = 
+        categories.Income.includes(transaction.category) ? transaction.category :
+        categories.Expense.includes(transaction.category) ? transaction.category :
+        categories.Income.includes(transaction.description) ? transaction.description :
+        categories.Expense.includes(transaction.description) ? transaction.description :
+        transaction.category || 'Other';
+
+      const description = 
+        transaction.description && 
+        !categories.Income.includes(transaction.description) && 
+        !categories.Expense.includes(transaction.description) 
+          ? transaction.description 
+          : transaction.type || 'No description';
+      
+      return {
+        ...transaction,
+        amount,
+        type,
+        category,
+        description,
+        date
+      };
+    }
+  };
+
   const loadTransactions = useCallback(async () => {
-    const data = await getTransactions();
-    setTransactions(data);
-  }, []);
+    try {
+      console.log('Loading transactions with filters - Type:', filterType, 'Category:', filterCategory);
+      const data = await getTransactions();
+      
+      const normalizedData = data.map(normalizeTransaction);
+      let filteredData = normalizedData;
+      
+      if (filterType) {
+        filteredData = filteredData.filter(t => 
+          t.type.toLowerCase() === filterType.toLowerCase()
+        );
+      }
+      
+      if (filterCategory) {
+        filteredData = filteredData.filter(t => 
+          t.category.toLowerCase() === filterCategory.toLowerCase()
+        );
+      }
+      filteredData.sort((a, b) => new Date(b.date) - new Date(a.date));
+      
+      setTransactions(filteredData);
+    } catch (error) {
+      console.error('Error loading transactions:', error);
+      Alert.alert('Error', 'Failed to load transactions');
+    }
+  }, [filterType, filterCategory]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -60,56 +140,78 @@ const HomeScreen = () => {
 
   useFocusEffect(
     useCallback(() => {
-      const restored = router?.params?.restoredTransactions;
-      if (restored) {
-        setTransactions(restored);
-        router.setParams({ restoredTransactions: null });
-      } else {
-        loadTransactions();
-      }
-    }, [router, loadTransactions])
+      loadTransactions();
+    }, [loadTransactions])
   );
 
-  const handleAddTransaction = async () => {
-    if (!date || !description || !amount) {
-      alert('Please fill in all fields');
-      return;
-    }
+  const handleTypeFilter = (type) => {
+    console.log('Setting type filter:', type);
+    setFilterType(type);
+    setFilterCategory(null);
+    setShowTypePicker(false);
+  };
 
-    try {
-      await addTransaction(date, description, type, category, parseFloat(amount));
-      setDate('');
-      setDescription('');
-      setAmount('');
-      await loadTransactions();
-      alert('Transaction added successfully!');
-    } catch (error) {
-      console.error('Error adding transaction:', error);
-      alert('Failed to add transaction');
+  const handleCategoryFilter = (category) => {
+    console.log('Setting category filter:', category);
+    setFilterCategory(category);
+    setShowCategoryPicker(false);
+  };
+
+  const clearAllFilters = () => {
+    setFilterType(null);
+    setFilterCategory(null);
+  };
+
+  const calculateTotals = () => {
+    const incomeTotal = transactions
+      .filter(t => t.type === 'income')
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
+    
+    const expenseTotal = transactions
+      .filter(t => t.type === 'expense')
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
+    
+    const balance = incomeTotal - expenseTotal;
+    
+    return { incomeTotal, expenseTotal, balance };
+  };
+
+  const { incomeTotal, expenseTotal, balance } = calculateTotals();
+
+  const getAvailableCategories = () => {
+    if (filterType) {
+      return categories[filterType] || [];
     }
+    return [...categories.Income, ...categories.Expense];
   };
 
   const renderTypePicker = () => (
-    <Modal visible={showTypePicker} transparent animationType="slide" onRequestClose={() => setShowTypePicker(false)}>
+    <Modal visible={showTypePicker} transparent animationType="slide">
       <View style={styles.modalContainer}>
         <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>Select Type</Text>
-          <ScrollView>
-            {['expense', 'income'].map((t) => (
-              <TouchableOpacity
-                key={t}
-                style={[styles.modalOption, type === t && styles.selectedOption]}
-                onPress={() => {
-                  setType(t);
-                  setShowTypePicker(false);
-                }}
-              >
-                <Text style={[styles.modalOptionText, type === t && styles.selectedOptionText]}>
-                  {t.charAt(0).toUpperCase() + t.slice(1)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          <Text style={styles.modalTitle}>Filter by Type</Text>
+
+          <TouchableOpacity
+            style={[styles.modalOption, filterType === null && styles.selectedOption]}
+            onPress={() => handleTypeFilter(null)}
+          >
+            <Text style={[styles.modalOptionText, filterType === null && styles.selectedOptionText]}>
+              All Types
+            </Text>
+          </TouchableOpacity>
+
+          {['Income', 'Expense'].map((t) => (
+            <TouchableOpacity
+              key={t}
+              style={[styles.modalOption, filterType === t && styles.selectedOption]}
+              onPress={() => handleTypeFilter(t)}
+            >
+              <Text style={[styles.modalOptionText, filterType === t && styles.selectedOptionText]}>
+                {t}
+              </Text>
+            </TouchableOpacity>
+          ))}
+
           <TouchableOpacity style={styles.modalCancel} onPress={() => setShowTypePicker(false)}>
             <Text style={styles.modalCancelText}>Cancel</Text>
           </TouchableOpacity>
@@ -118,62 +220,61 @@ const HomeScreen = () => {
     </Modal>
   );
 
-  const renderCategoryPicker = () => (
-    <Modal visible={showCategoryPicker} transparent animationType="slide" onRequestClose={() => setShowCategoryPicker(false)}>
-      <View style={styles.modalContainer}>
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>Select Category</Text>
-          <ScrollView style={styles.modalScroll}>
-            {categories[type].map((item) => (
+  const renderCategoryPicker = () => {
+    const availableCategories = getAvailableCategories();
+
+    return (
+      <Modal visible={showCategoryPicker} transparent animationType="slide">
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Filter by Category</Text>
+
+            <TouchableOpacity
+              style={[styles.modalOption, filterCategory === null && styles.selectedOption]}
+              onPress={() => handleCategoryFilter(null)}
+            >
+              <Text style={[styles.modalOptionText, filterCategory === null && styles.selectedOptionText]}>
+                All Categories
+              </Text>
+            </TouchableOpacity>
+
+            {availableCategories.map((item) => (
               <TouchableOpacity
                 key={item}
-                style={[styles.modalOption, category === item && styles.selectedOption]}
-                onPress={() => {
-                  setCategory(item);
-                  setShowCategoryPicker(false);
-                }}
+                style={[styles.modalOption, filterCategory === item && styles.selectedOption]}
+                onPress={() => handleCategoryFilter(item)}
               >
-                <Text style={[styles.modalOptionText, category === item && styles.selectedOptionText]}>
+                <Text style={[styles.modalOptionText, filterCategory === item && styles.selectedOptionText]}>
                   {item}
                 </Text>
               </TouchableOpacity>
             ))}
-          </ScrollView>
-          <TouchableOpacity style={styles.modalCancel} onPress={() => setShowCategoryPicker(false)}>
-            <Text style={styles.modalCancelText}>Cancel</Text>
-          </TouchableOpacity>
+
+            <TouchableOpacity style={styles.modalCancel} onPress={() => setShowCategoryPicker(false)}>
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
-    </Modal>
-  );
+      </Modal>
+    );
+  };
 
   const renderSettingsModal = () => (
-    <Modal
-      visible={showSettingsModal}
-      transparent
-      animationType="slide"
-      onRequestClose={() => setShowSettingsModal(false)}
-    >
+    <Modal visible={showSettingsModal} transparent animationType="slide">
       <View style={styles.modalContainer}>
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>Settings</Text>
 
           <TouchableOpacity
             style={[styles.actionButton, { marginBottom: 10 }]}
-            onPress={() => {
-              setShowSettingsModal(false);
-              navigateToBackup();
-            }}
+            onPress={() => { setShowSettingsModal(false); router.push('/screens/Backup'); }}
           >
             <Text style={styles.actionButtonText}>Backup</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => {
-              setShowSettingsModal(false);
-              navigateToRestore();
-            }}
+            onPress={() => { setShowSettingsModal(false); router.push('/screens/Restore'); }}
           >
             <Text style={styles.actionButtonText}>Restore</Text>
           </TouchableOpacity>
@@ -186,19 +287,25 @@ const HomeScreen = () => {
     </Modal>
   );
 
+  const getTypeFilterText = () => filterType ? filterType : 'All Types';
+  const getCategoryFilterText = () => filterCategory ? filterCategory : 'All Categories';
+
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardAvoidingView}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        >
-          <View style={styles.headerContainer}>
-            <Text style={styles.title}>Expense Tracker</Text>
+        <View style={styles.headerContainer}>
+          <Text style={styles.title}>Expense Tracker</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => router.push('/screens/AddTransaction')}
+            >
+              <Text style={styles.addButtonText}>➕</Text>
+            </TouchableOpacity>
             <TouchableOpacity
               style={styles.settingsButton}
               onPress={() => setShowSettingsModal(true)}
@@ -206,113 +313,152 @@ const HomeScreen = () => {
               <Text style={styles.settingsIcon}>⚙️</Text>
             </TouchableOpacity>
           </View>
+        </View>
 
-          <View style={styles.formContainer}>
-            <Input
-              placeholder="Date (YYYY-MM-DD)"
-              value={date}
-              onChangeText={setDate}
-              style={styles.input}
-              placeholderTextColor="#999"
-            />
-            <Input
-              placeholder="Description"
-              value={description}
-              onChangeText={setDescription}
-              style={styles.input}
-              placeholderTextColor="#999"
-            />
-
-            <Text style={styles.label}>Type</Text>
-            <TouchableOpacity style={styles.pickerButton} onPress={() => setShowTypePicker(true)}>
-              <Text style={styles.pickerButtonText}>
-                {type.charAt(0).toUpperCase() + type.slice(1)}
+        <View style={styles.summaryContainer}>
+          <View style={[styles.summaryCard, styles.balanceCard]}>
+            <Text style={styles.summaryLabel}>Balance</Text>
+            <Text style={[styles.summaryAmount, balance >= 0 ? styles.positive : styles.negative]}>
+              ₹{balance.toFixed(2)}
+            </Text>
+          </View>
+          
+          <View style={styles.summaryRow}>
+            <View style={[styles.summaryCard, styles.incomeCard]}>
+              <Text style={styles.summaryLabel}>Income</Text>
+              <Text style={[styles.summaryAmount, styles.positive]}>
+                ₹{incomeTotal.toFixed(2)}
               </Text>
-              <Text style={styles.pickerArrow}>▼</Text>
-            </TouchableOpacity>
-
-            <Text style={styles.label}>Category</Text>
-            <TouchableOpacity
-              style={styles.pickerButton}
-              onPress={() => setShowCategoryPicker(true)}
-            >
-              <Text style={styles.pickerButtonText}>{category}</Text>
-              <Text style={styles.pickerArrow}>▼</Text>
-            </TouchableOpacity>
-
-            <Input
-              placeholder="Amount"
-              value={amount}
-              onChangeText={setAmount}
-              keyboardType="numeric"
-              style={styles.input}
-              placeholderTextColor="#999"
-            />
-
-            <Button title="Add Transaction" onPress={handleAddTransaction} style={styles.button} />
-          </View>
-
-          <View style={styles.transactionsContainer}>
-            <View style={styles.transactionsHeader}>
-              <Text style={styles.transactionsTitle}>Recent Transactions</Text>
-              <Text style={styles.transactionsCount}>({transactions.length})</Text>
             </View>
+            
+            <View style={[styles.summaryCard, styles.expenseCard]}>
+              <Text style={styles.summaryLabel}>Expenses</Text>
+              <Text style={[styles.summaryAmount, styles.negative]}>
+                ₹{expenseTotal.toFixed(2)}
+              </Text>
+            </View>
+          </View>
+        </View>
 
-            {transactions.length === 0 ? (
-              <Text style={styles.noTransactions}>No transactions yet</Text>
-            ) : (
-              <FlatList
-                data={transactions}
-                keyExtractor={(item) => item.id.toString()}
-                renderItem={({ item }) => (
-                  <View
-                    style={[
-                      styles.transactionItem,
-                      item.type === 'income' ? styles.incomeItem : styles.expenseItem,
-                    ]}
-                  >
-                    <View style={styles.transactionHeader}>
-                      <Text style={styles.transactionDate}>{item.date}</Text>
-                      <Text
-                        style={[
-                          styles.transactionAmount,
-                          item.type === 'income' ? styles.income : styles.expense,
-                        ]}
-                      >
-                        ${parseFloat(item.amount).toFixed(2)}
-                      </Text>
-                    </View>
-                    <Text style={styles.transactionDescription}>{item.description}</Text>
-                    <View style={styles.transactionFooter}>
-                      <Text style={styles.transactionCategory}>{item.category}</Text>
-                      <Text
-                        style={[
-                          styles.transactionType,
-                          item.type === 'income' ? styles.incomeText : styles.expenseText,
-                        ]}
-                      >
-                        {item.type}
-                      </Text>
-                    </View>
-                  </View>
-                )}
-                scrollEnabled={false}
-              />
-            )}
+        <View style={styles.filterContainer}>
+          <TouchableOpacity 
+            style={[
+              styles.filterButton,
+              filterType && styles.activeFilterButton
+            ]} 
+            onPress={() => setShowTypePicker(true)}
+          >
+            <Text style={[
+              styles.filterButtonText,
+              filterType && styles.activeFilterButtonText
+            ]}>
+              {getTypeFilterText()}
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[
+              styles.filterButton,
+              filterCategory && styles.activeFilterButton
+            ]} 
+            onPress={() => setShowCategoryPicker(true)}
+          >
+            <Text style={[
+              styles.filterButtonText,
+              filterCategory && styles.activeFilterButtonText
+            ]}>
+              {getCategoryFilterText()}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {(filterType || filterCategory) && (
+          <TouchableOpacity 
+            style={styles.clearFilterButton}
+            onPress={clearAllFilters}
+          >
+            <Text style={styles.clearFilterButtonText}>Clear All Filters</Text>
+          </TouchableOpacity>
+        )}
+
+        <View style={styles.transactionsContainer}>
+          <View style={styles.transactionsHeader}>
+            <Text style={styles.transactionsTitle}>
+              Transactions ({transactions.length})
+              {(filterType || filterCategory) && ' (Filtered)'}
+            </Text>
           </View>
 
-          {renderTypePicker()}
-          {renderCategoryPicker()}
-          {renderSettingsModal()}
-        </ScrollView>
-      </KeyboardAvoidingView>
+          {transactions.length === 0 ? (
+            <View style={styles.noTransactionsContainer}>
+              <Text style={styles.noTransactions}>No transactions found</Text>
+              {(filterType || filterCategory) && (
+                <Text style={styles.noTransactionsHint}>
+                  Try changing your filters or {''}
+                  <Text 
+                    style={styles.clearFilterLink} 
+                    onPress={clearAllFilters}
+                  >
+                    clear all filters
+                  </Text>
+                </Text>
+              )}
+            </View>
+          ) : (
+            <FlatList
+              data={transactions}
+              keyExtractor={(item) => item.id.toString()}
+              renderItem={({ item }) => (
+                <View
+                  style={[
+                    styles.transactionItem,
+                    item.type === 'income' ? styles.incomeItem : styles.expenseItem,
+                  ]}
+                >
+                  <View style={styles.transactionHeader}>
+                    <View style={styles.transactionMain}>
+                      <Text style={styles.transactionDescription}>
+                        {item.description}
+                      </Text>
+                      <Text style={styles.transactionDate}>{item.date}</Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.transactionAmount,
+                        item.type === 'income' ? styles.income : styles.expense,
+                      ]}
+                    >
+                      ₹{item.amount.toFixed(0)}
+                    </Text>
+                  </View>
+                  <View style={styles.transactionFooter}>
+                    <Text style={styles.transactionCategory}>{item.category}</Text>
+                    <Text
+                      style={[
+                        styles.transactionType,
+                        item.type === 'income' ? styles.incomeText : styles.expenseText,
+                      ]}
+                    >
+                      {item.type.charAt(0).toUpperCase() + item.type.slice(1)}
+                    </Text>
+                  </View>
+                </View>
+              )}
+              scrollEnabled={false}
+            />
+          )}
+        </View>
+
+        {renderTypePicker()}
+        {renderCategoryPicker()}
+        {renderSettingsModal()}
+      </ScrollView>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#ffffff' },
-  keyboardAvoidingView: { flex: 1 },
   scrollContent: { flexGrow: 1, paddingHorizontal: 20, paddingBottom: 20 },
 
   headerContainer: {
@@ -322,40 +468,93 @@ const styles = StyleSheet.create({
     marginVertical: 20,
   },
   title: { fontSize: 28, fontWeight: 'bold', color: '#333' },
-  settingsButton: {
-    backgroundColor: '#f0f0f0',
-    borderRadius: 50,
-    padding: 8,
-  },
+  settingsButton: { backgroundColor: '#f0f0f0', borderRadius: 50, padding: 8, marginLeft: 10 },
   settingsIcon: { fontSize: 22 },
+  addButton: { backgroundColor: '#34C759', borderRadius: 50, padding: 8 },
+  addButtonText: { fontSize: 22, color: '#fff' },
 
-  formContainer: {
-    backgroundColor: '#f8f9fa',
-    borderRadius: 12,
-    padding: 20,
+  // Summary Styles
+  summaryContainer: {
     marginBottom: 20,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginTop: 10,
+  },
+  summaryCard: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
   },
-  input: { marginBottom: 15, backgroundColor: '#ffffff' },
-  label: { fontSize: 16, fontWeight: '600', marginBottom: 8, color: '#333' },
-  pickerButton: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 15,
-    marginBottom: 15,
-    backgroundColor: '#ffffff',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  balanceCard: {
+    backgroundColor: '#f8f9fa',
+    borderLeftWidth: 4,
+    borderLeftColor: '#007AFF',
   },
-  pickerButtonText: { fontSize: 16, color: '#333', fontWeight: '500' },
-  pickerArrow: { fontSize: 12, color: '#666' },
-  button: { marginTop: 10 },
+  incomeCard: {
+    backgroundColor: '#f0f9f0',
+    borderLeftWidth: 4,
+    borderLeftColor: '#34C759',
+  },
+  expenseCard: {
+    backgroundColor: '#fef0f0',
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF3B30',
+  },
+  summaryLabel: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  summaryAmount: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  positive: {
+    color: '#34C759',
+  },
+  negative: {
+    color: '#FF3B30',
+  },
+
+  filterContainer: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    marginBottom: 15,
+    gap: 10,
+  },
+  filterButton: {
+    flex: 1,
+    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  activeFilterButton: {
+    backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
+  },
+  filterButtonText: { fontSize: 16, color: '#333', fontWeight: '500' },
+  activeFilterButtonText: { color: '#fff', fontWeight: '600' },
+
+  clearFilterButton: {
+    padding: 12,
+    backgroundColor: '#6c757d',
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  clearFilterButtonText: { color: '#fff', fontWeight: '500' },
 
   transactionsContainer: {
     backgroundColor: '#f8f9fa',
@@ -368,21 +567,35 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   transactionsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 15,
   },
-  transactionsTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
-  transactionsCount: {
-    fontSize: 14,
-    color: '#666',
-    backgroundColor: '#e9ecef',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+  transactionsTitle: { 
+    fontSize: 20, 
+    fontWeight: 'bold', 
+    color: '#333',
   },
-  noTransactions: { textAlign: 'center', color: '#666', fontStyle: 'italic', marginVertical: 20 },
+  
+  noTransactionsContainer: {
+    alignItems: 'center',
+    paddingVertical: 30,
+  },
+  noTransactions: { 
+    textAlign: 'center', 
+    color: '#666', 
+    fontStyle: 'italic', 
+    fontSize: 16,
+    marginBottom: 8,
+  },
+  noTransactionsHint: {
+    textAlign: 'center',
+    color: '#888',
+    fontSize: 14,
+  },
+  clearFilterLink: {
+    color: '#007AFF',
+    fontWeight: '500',
+    textDecorationLine: 'underline',
+  },
 
   transactionItem: {
     backgroundColor: '#ffffff',
@@ -398,67 +611,101 @@ const styles = StyleSheet.create({
   },
   incomeItem: { borderLeftColor: '#34C759' },
   expenseItem: { borderLeftColor: '#FF3B30' },
-  transactionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 5,
+  transactionHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'flex-start',
+    marginBottom: 8,
   },
-  transactionDate: { fontSize: 14, color: '#666', fontWeight: '500' },
-  transactionAmount: { fontSize: 18, fontWeight: 'bold' },
+  transactionMain: {
+    flex: 1,
+    marginRight: 10,
+  },
+  transactionDate: { 
+    fontSize: 12, 
+    color: '#666', 
+    marginTop: 4,
+  },
+  transactionAmount: { 
+    fontSize: 18, 
+    fontWeight: 'bold',
+    minWidth: 80,
+    textAlign: 'right',
+  },
   income: { color: '#34C759' },
   expense: { color: '#FF3B30' },
-  transactionDescription: { fontSize: 16, fontWeight: '600', color: '#333', marginBottom: 5 },
-  transactionFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  transactionDescription: { 
+    fontSize: 16, 
+    fontWeight: '600', 
+    color: '#333',
+  },
+  transactionFooter: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center' 
+  },
   transactionCategory: {
     fontSize: 14,
     color: '#666',
     backgroundColor: '#e9ecef',
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 4,
     borderRadius: 12,
   },
-  transactionType: { fontSize: 12, fontWeight: '500', textTransform: 'uppercase' },
+  transactionType: { 
+    fontSize: 12, 
+    fontWeight: '500', 
+    textTransform: 'uppercase' 
+  },
   incomeText: { color: '#34C759' },
   expenseText: { color: '#FF3B30' },
 
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    padding: 20,
+  modalContainer: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    backgroundColor: 'rgba(0,0,0,0.5)', 
+    padding: 20 
   },
-  modalContent: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 20,
-    width: '100%',
-    maxHeight: '80%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+  modalContent: { 
+    backgroundColor: 'white', 
+    borderRadius: 12, 
+    padding: 20, 
+    width: '100%', 
+    maxHeight: '80%' 
   },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, textAlign: 'center', color: '#333' },
-  modalScroll: { maxHeight: 300 },
-  modalOption: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#f0f0f0', borderRadius: 8, marginBottom: 5 },
+  modalTitle: { 
+    fontSize: 18, 
+    fontWeight: 'bold', 
+    marginBottom: 15, 
+    textAlign: 'center' 
+  },
+  modalOption: { 
+    padding: 15, 
+    borderBottomWidth: 1, 
+    borderBottomColor: '#f0f0f0', 
+    borderRadius: 8, 
+    marginBottom: 5 
+  },
   selectedOption: { backgroundColor: '#007AFF' },
   modalOptionText: { fontSize: 16, color: '#333', textAlign: 'center' },
-  selectedOptionText: { color: '#ffffff', fontWeight: '600' },
-  modalCancel: { padding: 15, marginTop: 28, backgroundColor: '#fc4545ff', borderRadius: 8, alignItems: 'center' },
-  modalCancelText: { fontSize: 16, color: '#fff', fontWeight: '600' },
-
+  selectedOptionText: { color: '#fff', fontWeight: '600' },
+  modalCancel: { 
+    padding: 15, 
+    marginTop: 10, 
+    backgroundColor: '#6c757d', 
+    borderRadius: 8, 
+    alignItems: 'center' 
+  },
+  modalCancelText: { color: '#fff', fontWeight: '600' },
   actionButton: {
     backgroundColor: '#f8f9fa',
     borderRadius: 12,
     padding: 15,
     alignItems: 'center',
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: '#e9ecef',
   },
-  actionButtonIcon: { fontSize: 24, marginBottom: 5 },
   actionButtonText: { fontSize: 14, fontWeight: '600', color: '#333' },
 });
 
