@@ -3,28 +3,23 @@ import {
   View,
   Text,
   Alert,
-  FlatList,
-  TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
-  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Button from '../components/Button';
 import { useGoogleAuth } from '../services/gAuth';
 import { listDriveBackups, restoreBackupFromDriveSimple } from '../services/gDrive';
 import * as jwtDecode from 'jwt-decode';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter } from 'expo-router';
 
 const RestoreScreen = () => {
   const { token, promptAsync } = useGoogleAuth();
-  const [backups, setBackups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [restoring, setRestoring] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
 
   const router = useRouter();
 
+  // 🔹 Decode token (debug info)
   useEffect(() => {
     if (token) {
       try {
@@ -36,128 +31,87 @@ const RestoreScreen = () => {
     }
   }, [token]);
 
-  const fetchBackups = useCallback(async () => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const files = await listDriveBackups(token);
-      setBackups(files);
-    } catch (err) {
-      console.error(err);
-      Alert.alert('Error', err.message);
-    } finally {
-      setLoading(false);
+  // 🔹 Auto Sign-In if not authenticated
+  useEffect(() => {
+    if (!token) {
+      console.log('No token found → prompting Google sign-in...');
+      promptAsync();
     }
   }, [token]);
 
+  // 🔹 Once signed in, fetch and auto-restore latest backup
   useEffect(() => {
-    fetchBackups();
-  }, [fetchBackups]);
+    const autoRestoreLatestBackup = async () => {
+      if (!token) return;
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await fetchBackups();
-    setRefreshing(false);
-  }, [fetchBackups]);
+      setLoading(true);
+      try {
+        const files = await listDriveBackups(token);
 
-  const handleRestoreDrive = async (fileId, name) => {
-    Alert.alert(
-      'Restore Backup',
-      `Are you sure you want to restore backup "${name}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Restore',
-          onPress: async () => {
-            try {
-              setRestoring(true);
-              await restoreBackupFromDriveSimple(token, fileId);
-              
-              Alert.alert(
-                'Success', 
-                `Restored backup: ${name}.`,
-                [
-                  {
-                    text: 'OK',
-                    onPress: () => {
-                      router.push('/screens/Home');
-                    }
-                  }
-                ]
-              );
-            } catch (err) {
-              console.error(err);
-              Alert.alert('Error', err.message);
-            } finally {
-              setRestoring(false);
-            }
-          },
-        },
-      ]
-    );
-  };
+        if (!files || files.length === 0) {
+          Alert.alert('No backups found', 'You have no backups available on Google Drive.');
+          setLoading(false);
+          return;
+        }
+
+        // Sort backups by last modified time (most recent first)
+        const sorted = files.sort(
+          (a, b) => new Date(b.modifiedTime) - new Date(a.modifiedTime)
+        );
+        const latest = sorted[0];
+
+        console.log('Auto restoring latest backup:', latest.name);
+
+        setRestoring(true);
+        await restoreBackupFromDriveSimple(token, latest.id);
+
+        Alert.alert(
+          'Restore Complete',
+          `Successfully restored backup: ${latest.name}`,
+          [
+            {
+              text: 'OK',
+              onPress: () => router.push('/screens/Home'),
+            },
+          ]
+        );
+      } catch (err) {
+        console.error('Restore failed:', err);
+        Alert.alert('Error', err.message || 'Failed to restore backup.');
+      } finally {
+        setRestoring(false);
+        setLoading(false);
+      }
+    };
+
+    if (token) autoRestoreLatestBackup();
+  }, [token]);
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Restore Database</Text>
+      <Text style={styles.title}>Restoring Backup...</Text>
 
-      {!token && (
-        <Button title="Sign in with Google" onPress={() => promptAsync()} />
-      )}
-
-      {loading && (
-        <ActivityIndicator
-          size="large"
-          color="#007AFF"
-          style={{ marginTop: 20 }}
-        />
-      )}
-
-      {token && backups.length === 0 && !loading && (
-        <Text style={styles.emptyText}>No backups found on Drive.</Text>
-      )}
-
-      {token && backups.length > 0 && (
-        <FlatList
-          data={backups}
-          keyExtractor={(item, index) => item.id || index.toString()}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.backupItem}
-              onPress={() => handleRestoreDrive(item.id, item.name)}
-              disabled={restoring}
-            >
-              <Text style={styles.backupName}>{item.name}</Text>
-              <Text style={styles.backupDate}>
-                {new Date(item.modifiedTime).toLocaleString()}
-              </Text>
-            </TouchableOpacity>
-          )}
-        />
-      )}
-
-      {restoring && (
+      {(loading || restoring) && (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>Restoring backup...</Text>
+          <Text style={styles.loadingText}>
+            {loading ? 'Fetching latest backup...' : 'Restoring database...'}
+          </Text>
         </View>
+      )}
+
+      {!loading && !restoring && token && (
+        <Text style={styles.loadingText}>Preparing restore...</Text>
       )}
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#f5f5f5' },
-  title: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 20 },
-  backupItem: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 10, elevation: 3 },
-  backupName: { fontSize: 16, fontWeight: '600', color: '#333' },
-  backupDate: { fontSize: 13, color: '#777', marginTop: 4 },
-  loadingContainer: { alignItems: 'center', marginTop: 20 },
-  loadingText: { marginTop: 10, color: '#666', fontSize: 16 },
-  emptyText: { textAlign: 'center', marginTop: 20, color: '#666', fontSize: 16 },
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f5f5' },
+  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
+  loadingContainer: { alignItems: 'center' },
+  loadingText: { marginTop: 15, color: '#666', fontSize: 16, textAlign: 'center', paddingHorizontal: 20 },
 });
 
 export default RestoreScreen;

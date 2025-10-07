@@ -32,6 +32,7 @@ const HomeScreen = () => {
   const [showTypePicker, setShowTypePicker] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   const categories = {
     expense: ['Food', 'Rent', 'Entertainment', 'Transport', 'Shopping', 'Bills', 'Healthcare'],
@@ -146,45 +147,107 @@ const HomeScreen = () => {
     </Modal>
   );
 
+  const renderSettingsModal = () => (
+    <Modal
+      visible={showSettingsModal}
+      transparent
+      animationType="slide"
+      onRequestClose={() => setShowSettingsModal(false)}
+    >
+      <View style={styles.modalContainer}>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>Settings</Text>
+
+          <TouchableOpacity
+            style={[styles.actionButton, { marginBottom: 10 }]}
+            onPress={() => {
+              setShowSettingsModal(false);
+              navigateToBackup();
+            }}
+          >
+            <Text style={styles.actionButtonText}>Backup</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => {
+              setShowSettingsModal(false);
+              navigateToRestore();
+            }}
+          >
+            <Text style={styles.actionButtonText}>Restore</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.modalCancel} onPress={() => setShowSettingsModal(false)}>
+            <Text style={styles.modalCancelText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardAvoidingView}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoidingView}
+      >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
-          <Text style={styles.title}>Expense Tracker</Text>
-
-          <View style={styles.actionButtonsContainer}>
-            <TouchableOpacity style={styles.actionButton} onPress={navigateToBackup}>
-              <Text style={styles.actionButtonIcon}>📤</Text>
-              <Text style={styles.actionButtonText}>Backup</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.actionButton} onPress={navigateToRestore}>
-              <Text style={styles.actionButtonIcon}>📥</Text>
-              <Text style={styles.actionButtonText}>Restore</Text>
+          <View style={styles.headerContainer}>
+            <Text style={styles.title}>Expense Tracker</Text>
+            <TouchableOpacity
+              style={styles.settingsButton}
+              onPress={() => setShowSettingsModal(true)}
+            >
+              <Text style={styles.settingsIcon}>⚙️</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.formContainer}>
-            <Input placeholder="Date (YYYY-MM-DD)" value={date} onChangeText={setDate} style={styles.input} placeholderTextColor="#999" />
-            <Input placeholder="Description" value={description} onChangeText={setDescription} style={styles.input} placeholderTextColor="#999" />
+            <Input
+              placeholder="Date (YYYY-MM-DD)"
+              value={date}
+              onChangeText={setDate}
+              style={styles.input}
+              placeholderTextColor="#999"
+            />
+            <Input
+              placeholder="Description"
+              value={description}
+              onChangeText={setDescription}
+              style={styles.input}
+              placeholderTextColor="#999"
+            />
 
             <Text style={styles.label}>Type</Text>
             <TouchableOpacity style={styles.pickerButton} onPress={() => setShowTypePicker(true)}>
-              <Text style={styles.pickerButtonText}>{type.charAt(0).toUpperCase() + type.slice(1)}</Text>
+              <Text style={styles.pickerButtonText}>
+                {type.charAt(0).toUpperCase() + type.slice(1)}
+              </Text>
               <Text style={styles.pickerArrow}>▼</Text>
             </TouchableOpacity>
 
             <Text style={styles.label}>Category</Text>
-            <TouchableOpacity style={styles.pickerButton} onPress={() => setShowCategoryPicker(true)}>
+            <TouchableOpacity
+              style={styles.pickerButton}
+              onPress={() => setShowCategoryPicker(true)}
+            >
               <Text style={styles.pickerButtonText}>{category}</Text>
               <Text style={styles.pickerArrow}>▼</Text>
             </TouchableOpacity>
 
-            <Input placeholder="Amount" value={amount} onChangeText={setAmount} keyboardType="numeric" style={styles.input} placeholderTextColor="#999" />
+            <Input
+              placeholder="Amount"
+              value={amount}
+              onChangeText={setAmount}
+              keyboardType="numeric"
+              style={styles.input}
+              placeholderTextColor="#999"
+            />
 
             <Button title="Add Transaction" onPress={handleAddTransaction} style={styles.button} />
           </View>
@@ -202,17 +265,32 @@ const HomeScreen = () => {
                 data={transactions}
                 keyExtractor={(item) => item.id.toString()}
                 renderItem={({ item }) => (
-                  <View style={[styles.transactionItem, item.type === 'income' ? styles.incomeItem : styles.expenseItem]}>
+                  <View
+                    style={[
+                      styles.transactionItem,
+                      item.type === 'income' ? styles.incomeItem : styles.expenseItem,
+                    ]}
+                  >
                     <View style={styles.transactionHeader}>
                       <Text style={styles.transactionDate}>{item.date}</Text>
-                      <Text style={[styles.transactionAmount, item.type === 'income' ? styles.income : styles.expense]}>
+                      <Text
+                        style={[
+                          styles.transactionAmount,
+                          item.type === 'income' ? styles.income : styles.expense,
+                        ]}
+                      >
                         ${parseFloat(item.amount).toFixed(2)}
                       </Text>
                     </View>
                     <Text style={styles.transactionDescription}>{item.description}</Text>
                     <View style={styles.transactionFooter}>
                       <Text style={styles.transactionCategory}>{item.category}</Text>
-                      <Text style={[styles.transactionType, item.type === 'income' ? styles.incomeText : styles.expenseText]}>
+                      <Text
+                        style={[
+                          styles.transactionType,
+                          item.type === 'income' ? styles.incomeText : styles.expenseText,
+                        ]}
+                      >
                         {item.type}
                       </Text>
                     </View>
@@ -225,6 +303,7 @@ const HomeScreen = () => {
 
           {renderTypePicker()}
           {renderCategoryPicker()}
+          {renderSettingsModal()}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -235,26 +314,20 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#ffffff' },
   keyboardAvoidingView: { flex: 1 },
   scrollContent: { flexGrow: 1, paddingHorizontal: 20, paddingBottom: 20 },
-  title: { fontSize: 28, fontWeight: 'bold', textAlign: 'center', marginVertical: 20, color: '#333' },
 
-  actionButtonsContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20, gap: 10 },
-  actionButton: {
-    flex: 1,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 12,
-    padding: 15,
+  headerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#e9ecef',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
-    elevation: 2,
+    marginVertical: 20,
   },
-  actionButtonIcon: { fontSize: 24, marginBottom: 5 },
-  actionButtonText: { fontSize: 14, fontWeight: '600', color: '#333' },
+  title: { fontSize: 28, fontWeight: 'bold', color: '#333' },
+  settingsButton: {
+    backgroundColor: '#f0f0f0',
+    borderRadius: 50,
+    padding: 8,
+  },
+  settingsIcon: { fontSize: 22 },
 
   formContainer: {
     backgroundColor: '#f8f9fa',
@@ -269,42 +342,124 @@ const styles = StyleSheet.create({
   },
   input: { marginBottom: 15, backgroundColor: '#ffffff' },
   label: { fontSize: 16, fontWeight: '600', marginBottom: 8, color: '#333' },
-  pickerButton: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 15, marginBottom: 15, backgroundColor: '#ffffff', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  pickerButton: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 15,
+    marginBottom: 15,
+    backgroundColor: '#ffffff',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   pickerButtonText: { fontSize: 16, color: '#333', fontWeight: '500' },
   pickerArrow: { fontSize: 12, color: '#666' },
   button: { marginTop: 10 },
 
-  transactionsContainer: { backgroundColor: '#f8f9fa', borderRadius: 12, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3.84, elevation: 5 },
-  transactionsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
+  transactionsContainer: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  transactionsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
   transactionsTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
-  transactionsCount: { fontSize: 14, color: '#666', backgroundColor: '#e9ecef', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
+  transactionsCount: {
+    fontSize: 14,
+    color: '#666',
+    backgroundColor: '#e9ecef',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
   noTransactions: { textAlign: 'center', color: '#666', fontStyle: 'italic', marginVertical: 20 },
 
-  transactionItem: { backgroundColor: '#ffffff', padding: 15, borderRadius: 8, marginBottom: 10, borderLeftWidth: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 1, elevation: 2 },
+  transactionItem: {
+    backgroundColor: '#ffffff',
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 10,
+    borderLeftWidth: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+    elevation: 2,
+  },
   incomeItem: { borderLeftColor: '#34C759' },
   expenseItem: { borderLeftColor: '#FF3B30' },
-  transactionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 },
+  transactionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
   transactionDate: { fontSize: 14, color: '#666', fontWeight: '500' },
   transactionAmount: { fontSize: 18, fontWeight: 'bold' },
   income: { color: '#34C759' },
   expense: { color: '#FF3B30' },
   transactionDescription: { fontSize: 16, fontWeight: '600', color: '#333', marginBottom: 5 },
   transactionFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  transactionCategory: { fontSize: 14, color: '#666', backgroundColor: '#e9ecef', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 },
+  transactionCategory: {
+    fontSize: 14,
+    color: '#666',
+    backgroundColor: '#e9ecef',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
   transactionType: { fontSize: 12, fontWeight: '500', textTransform: 'uppercase' },
   incomeText: { color: '#34C759' },
   expenseText: { color: '#FF3B30' },
 
-  modalContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', padding: 20 },
-  modalContent: { backgroundColor: 'white', borderRadius: 12, padding: 20, width: '100%', maxHeight: '80%', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 20,
+    width: '100%',
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
   modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, textAlign: 'center', color: '#333' },
   modalScroll: { maxHeight: 300 },
   modalOption: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#f0f0f0', borderRadius: 8, marginBottom: 5 },
   selectedOption: { backgroundColor: '#007AFF' },
   modalOptionText: { fontSize: 16, color: '#333', textAlign: 'center' },
   selectedOptionText: { color: '#ffffff', fontWeight: '600' },
-  modalCancel: { padding: 15, marginTop: 10, backgroundColor: '#f8f9fa', borderRadius: 8, alignItems: 'center' },
-  modalCancelText: { fontSize: 16, color: '#666', fontWeight: '600' },
+  modalCancel: { padding: 15, marginTop: 28, backgroundColor: '#fc4545ff', borderRadius: 8, alignItems: 'center' },
+  modalCancelText: { fontSize: 16, color: '#fff', fontWeight: '600' },
+
+  actionButton: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 15,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e9ecef',
+  },
+  actionButtonIcon: { fontSize: 24, marginBottom: 5 },
+  actionButtonText: { fontSize: 14, fontWeight: '600', color: '#333' },
 });
 
 export default HomeScreen;
