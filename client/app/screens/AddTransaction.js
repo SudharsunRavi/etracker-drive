@@ -1,9 +1,9 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Modal, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Input from '../components/Input';
 import Button from '../components/Button';
-import { addTransaction } from '../database/db';
+import { addTransaction, getCategories } from '../database/db';
 import { useRouter } from 'expo-router';
 
 const AddTransactionScreen = () => {
@@ -16,11 +16,15 @@ const AddTransactionScreen = () => {
   const [amount, setAmount] = useState('');
   const [showTypePicker, setShowTypePicker] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [categories, setCategories] = useState([]);
 
-  const categories = {
-    expense: ['Food', 'Rent', 'Entertainment', 'Transport', 'Shopping', 'Bills', 'Healthcare'],
-    income: ['Salary', 'Investment', 'Freelance', 'Gift', 'Bonus'],
-  };
+  useEffect(() => {
+    const load = async () => {
+      const data = await getCategories(type);
+      setCategories(data);
+    };
+    load();
+  }, [type]);
 
   const handleAddTransaction = async () => {
     if (!date || !description || !amount) {
@@ -96,16 +100,23 @@ const AddTransactionScreen = () => {
               <View style={styles.modalContent}>
                 <Text style={styles.modalTitle}>Select Category</Text>
                 <ScrollView>
-                  {categories[type].map((item) => (
+                  {categories.map((item) => (
                     <TouchableOpacity
-                      key={item}
-                      style={[styles.modalOption, category === item && styles.selectedOption]}
+                      key={item.id}
+                      style={[styles.modalOption, category === item.name && styles.selectedOption]}
                       onPress={() => {
-                        setCategory(item);
+                        setCategory(item.name);
                         setShowCategoryPicker(false);
                       }}
                     >
-                      <Text style={[styles.modalOptionText, category === item && styles.selectedOptionText]}>{item}</Text>
+                      <Text
+                        style={[
+                          styles.modalOptionText,
+                          category === item.name && styles.selectedOptionText,
+                        ]}
+                      >
+                        {item.name}
+                      </Text>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>

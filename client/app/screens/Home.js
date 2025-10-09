@@ -11,7 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { initDB, getTransactions, getAllTransactionsDebug } from '../database/db';
+import { initDB, getTransactions, getCategories } from '../database/db';
 import { useRouter, useFocusEffect } from 'expo-router';
 
 const HomeScreen = () => {
@@ -26,11 +26,17 @@ const HomeScreen = () => {
   const [showTypePicker, setShowTypePicker] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [categories, setCategories] = useState({ Expense: [], Income: [] });
 
-  const categories = {
-    Expense: ['Food', 'Rent', 'Entertainment', 'Transport', 'Shopping', 'Bills', 'Healthcare'],
-    Income: ['Salary', 'Investment', 'Freelance', 'Gift', 'Bonus'],
-  };
+  useEffect(() => {
+    const loadCategories = async () => {
+      const data = await getCategories();
+      const expenseCategories = data.filter(c => c.type === 'expense').map(c => c.name);
+      const incomeCategories = data.filter(c => c.type === 'income').map(c => c.name);
+      setCategories({ Expense: expenseCategories, Income: incomeCategories });
+    };
+    loadCategories();
+  }, []);
 
   useEffect(() => {
     const initializeApp = async () => {
@@ -264,6 +270,13 @@ const HomeScreen = () => {
       <View style={styles.modalContainer}>
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>Settings</Text>
+
+          <TouchableOpacity
+            style={[styles.actionButton, { marginBottom: 10 }]}
+            onPress={() => { setShowSettingsModal(false); router.push('/screens/Category'); }}
+          >
+            <Text style={styles.actionButtonText}>Category</Text>
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.actionButton, { marginBottom: 10 }]}

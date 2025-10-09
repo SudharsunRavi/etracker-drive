@@ -8,6 +8,9 @@ const SettingsScreen = () => {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Settings</Text>
+      <TouchableOpacity style={styles.button} onPress={() => router.push('/screens/CategoryScreen')}>
+        <Text style={styles.buttonText}>Category</Text>
+      </TouchableOpacity>
       <TouchableOpacity style={styles.button} onPress={() => router.push('/screens/Backup')}>
         <Text style={styles.buttonText}>Backup</Text>
       </TouchableOpacity>

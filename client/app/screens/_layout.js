@@ -4,7 +4,9 @@ import HomeScreen from './Home';
 import BackupScreen from './Backup';
 import RestoreScreen from './Restore';
 import AddTransaction from './AddTransaction';
+import EditTransactions from './EditTransaction';
 import SettingsScreen from './Settings';
+import CategoryScreen from './Category';
 import Charts from './Charts';
 
 const Stack = createNativeStackNavigator();
@@ -18,6 +20,8 @@ function App() {
         <Stack.Screen name="Restore" component={RestoreScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="AddTransaction" component={AddTransaction} />
+        <Stack.Screen name="EditTransaction" component={EditTransactions} />
+        <Stack.Screen name="Category" component={CategoryScreen} />
         <Stack.Screen name="Charts" component={Charts} />
       </Stack.Navigator>
     </NavigationContainer>

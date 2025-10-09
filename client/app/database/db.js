@@ -17,6 +17,15 @@ export const initDB = async () => {
         createdAt TEXT DEFAULT (datetime('now', 'localtime'))
       );
     `);
+
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS categories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
+        createdAt TEXT DEFAULT (datetime('now', 'localtime'))
+      );
+    `);
     
     const oldTableExists = await db.getAllAsync(
       "SELECT name FROM sqlite_master WHERE type='table' AND name='transactions'"
@@ -168,3 +177,49 @@ export const updateTransaction = async (id, updatedFields) => {
     throw error;
   }
 };
+
+export const getCategories = async (type = null) => {
+  try {
+    if (type) {
+      return await db.getAllAsync('SELECT * FROM categories WHERE type = ? ORDER BY name', [type]);
+    }
+    return await db.getAllAsync('SELECT * FROM categories ORDER BY type, name');
+  } catch (error) {
+    console.error('Error fetching categories:', error);
+    return [];
+  }
+};
+
+export const addCategory = async (name, type) => {
+  try {
+    await db.runAsync('INSERT INTO categories (name, type) VALUES (?, ?)', [name, type]);
+    console.log('Category added:', name);
+    return true;
+  } catch (error) {
+    console.error('Error adding category:', error);
+    return false;
+  }
+};
+
+export const updateCategory = async (id, name, type) => {
+  try {
+    await db.runAsync('UPDATE categories SET name = ?, type = ? WHERE id = ?', [name, type, id]);
+    console.log('Category updated:', id);
+    return true;
+  } catch (error) {
+    console.error('Error updating category:', error);
+    return false;
+  }
+};
+
+export const deleteCategory = async (id) => {
+  try {
+    await db.runAsync('DELETE FROM categories WHERE id = ?', [id]);
+    console.log('Category deleted:', id);
+    return true;
+  } catch (error) {
+    console.error('Error deleting category:', error);
+    return false;
+  }
+};
+

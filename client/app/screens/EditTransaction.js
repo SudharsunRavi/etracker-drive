@@ -13,26 +13,23 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Input from '../components/Input';
 import Button from '../components/Button';
-import { getTransactions, updateTransaction } from '../database/db';
+import { getTransactions, updateTransaction, getCategories } from '../database/db';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
-const EditTransactionScreen = () => {
+const EditTransactions = () => {
   const router = useRouter();
   const { id } = useLocalSearchParams();
 
   const [date, setDate] = useState('');
   const [description, setDescription] = useState('');
   const [type, setType] = useState('expense');
-  const [category, setCategory] = useState('Food');
+  const [category, setCategory] = useState('');
   const [amount, setAmount] = useState('');
   const [showTypePicker, setShowTypePicker] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [categories, setCategories] = useState([]);
 
-  const categories = {
-    expense: ['Food', 'Rent', 'Entertainment', 'Transport', 'Shopping', 'Bills', 'Healthcare'],
-    income: ['Salary', 'Investment', 'Freelance', 'Gift', 'Bonus'],
-  };
-
+  // Load transaction details
   useEffect(() => {
     const loadTransaction = async () => {
       try {
@@ -46,7 +43,7 @@ const EditTransactionScreen = () => {
 
         setDate(found.date);
         setDescription(found.description);
-        setType(found.type);
+        setType(found.type.toLowerCase());
         setCategory(found.category);
         setAmount(found.amount.toString());
       } catch (error) {
@@ -58,8 +55,27 @@ const EditTransactionScreen = () => {
     loadTransaction();
   }, [id]);
 
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const data = await getCategories(type);
+        setCategories(data);
+        console.log("=========================")
+        console.log(data)
+        if (data.length > 0) {
+          setCategory(data[0].category);
+        } else {
+          setCategory('');
+        }
+      } catch (error) {
+        console.error('Failed to load categories:', error);
+      }
+    };
+    loadCategories();
+  }, [type]);
+
   const handleUpdateTransaction = async () => {
-    if (!date || !description || !amount) {
+    if (!date || !description || !amount || !category) {
       Alert.alert('Error', 'Please fill all fields');
       return;
     }
@@ -88,6 +104,7 @@ const EditTransactionScreen = () => {
         style={{ flex: 1 }}
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
+          {/* Date */}
           <Text style={styles.label}>Date (YYYY-MM-DD)</Text>
           <Input
             placeholder="Date (YYYY-MM-DD)"
@@ -96,6 +113,7 @@ const EditTransactionScreen = () => {
             style={styles.input}
           />
 
+          {/* Description */}
           <Text style={styles.label}>Description</Text>
           <Input
             placeholder="Description"
@@ -104,6 +122,7 @@ const EditTransactionScreen = () => {
             style={styles.input}
           />
 
+          {/* Type */}
           <Text style={styles.label}>Type</Text>
           <TouchableOpacity
             style={styles.pickerButton}
@@ -114,6 +133,7 @@ const EditTransactionScreen = () => {
             </Text>
           </TouchableOpacity>
 
+          {/* Category */}
           <Text style={styles.label}>Category</Text>
           <TouchableOpacity
             style={styles.pickerButton}
@@ -122,6 +142,7 @@ const EditTransactionScreen = () => {
             <Text style={styles.pickerButtonText}>{category}</Text>
           </TouchableOpacity>
 
+          {/* Amount */}
           <Text style={styles.label}>Amount</Text>
           <Input
             placeholder="Amount"
@@ -131,8 +152,10 @@ const EditTransactionScreen = () => {
             style={styles.input}
           />
 
+          {/* Update Button */}
           <Button title="Update Transaction" onPress={handleUpdateTransaction} style={styles.button} />
 
+          {/* Type Picker Modal */}
           <Modal visible={showTypePicker} transparent animationType="slide">
             <View style={styles.modalContainer}>
               <View style={styles.modalContent}>
@@ -143,9 +166,8 @@ const EditTransactionScreen = () => {
                       key={t}
                       style={[styles.modalOption, type === t && styles.selectedOption]}
                       onPress={() => {
-                        setType(t);
+                        setType(t); // triggers category reload via useEffect
                         setShowTypePicker(false);
-                        setCategory(categories[t][0]);
                       }}
                     >
                       <Text
@@ -169,30 +191,28 @@ const EditTransactionScreen = () => {
             </View>
           </Modal>
 
+          {/* Category Picker Modal */}
           <Modal visible={showCategoryPicker} transparent animationType="slide">
             <View style={styles.modalContainer}>
               <View style={styles.modalContent}>
                 <Text style={styles.modalTitle}>Select Category</Text>
                 <ScrollView>
-                  {categories[type].map((item) => (
+                  {categories.map((item) => (
                     <TouchableOpacity
-                      key={item}
-                      style={[
-                        styles.modalOption,
-                        category === item && styles.selectedOption,
-                      ]}
+                      key={item.id}
+                      style={[styles.modalOption, category === item.name && styles.selectedOption]}
                       onPress={() => {
-                        setCategory(item);
+                        setCategory(item.name);
                         setShowCategoryPicker(false);
                       }}
                     >
                       <Text
                         style={[
                           styles.modalOptionText,
-                          category === item && styles.selectedOptionText,
+                          category === item.name && styles.selectedOptionText,
                         ]}
                       >
-                        {item}
+                        {item.name}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -271,4 +291,4 @@ const styles = StyleSheet.create({
   modalCancelText: { color: '#fff', fontWeight: '600' },
 });
 
-export default EditTransactionScreen;
+export default EditTransactions;
