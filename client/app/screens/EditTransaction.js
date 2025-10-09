@@ -1,42 +1,46 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
+  Pressable,
   Modal,
   ScrollView,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
   Alert,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Input from '../components/Input';
-import Button from '../components/Button';
-import { getTransactions, updateTransaction, getCategories } from '../database/db';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import Input from "../components/Input";
+import Button from "../components/Button";
+import { getTransactions, updateTransaction, getCategories } from "../database/db";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import dayjs from "dayjs";
 
-const EditTransactions = () => {
+const EditTransactionScreen = () => {
   const router = useRouter();
   const { id } = useLocalSearchParams();
 
-  const [date, setDate] = useState('');
-  const [description, setDescription] = useState('');
-  const [type, setType] = useState('expense');
-  const [category, setCategory] = useState('');
-  const [amount, setAmount] = useState('');
+  const [type, setType] = useState("expense");
+  const [categories, setCategories] = useState([]);
+  const [category, setCategory] = useState("");
+  const [amount, setAmount] = useState("");
+  const [description, setDescription] = useState("");
+  const [date, setDate] = useState(dayjs().format("YYYY-MM-DD"));
+
   const [showTypePicker, setShowTypePicker] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
-  const [categories, setCategories] = useState([]);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
-  // Load transaction details
   useEffect(() => {
     const loadTransaction = async () => {
       try {
         const all = await getTransactions();
         const found = all.find((t) => t.id == id);
         if (!found) {
-          Alert.alert('Error', 'Transaction not found');
+          Alert.alert("Error", "Transaction not found");
           router.back();
           return;
         }
@@ -48,7 +52,7 @@ const EditTransactions = () => {
         setAmount(found.amount.toString());
       } catch (error) {
         console.error(error);
-        Alert.alert('Error', 'Failed to load transaction');
+        Alert.alert("Error", "Failed to load transaction");
       }
     };
 
@@ -60,69 +64,52 @@ const EditTransactions = () => {
       try {
         const data = await getCategories(type);
         setCategories(data);
-        console.log("=========================")
-        console.log(data)
-        if (data.length > 0) {
-          setCategory(data[0].category);
-        } else {
-          setCategory('');
+        if (data.length > 0 && !data.find((c) => c.name === category)) {
+          setCategory(data[0].name);
         }
       } catch (error) {
-        console.error('Failed to load categories:', error);
+        console.error("Failed to load categories:", error);
       }
     };
     loadCategories();
   }, [type]);
 
+  const handleDateChange = (event, selectedDate) => {
+    setShowDatePicker(Platform.OS === "ios");
+    if (selectedDate) setDate(dayjs(selectedDate).format("YYYY-MM-DD"));
+    setShowDatePicker(false);
+  };
+
   const handleUpdateTransaction = async () => {
-    if (!date || !description || !amount || !category) {
-      Alert.alert('Error', 'Please fill all fields');
+    if (!amount || !description || !category) {
+      Alert.alert("Error", "Please fill all fields");
       return;
     }
 
     try {
       await updateTransaction(Number(id), {
-        date,
-        description,
+        amount: parseFloat(amount),
         type,
         category,
-        amount: parseFloat(amount),
+        description,
+        date,
       });
-      Alert.alert('Success', 'Transaction updated successfully!', [
-        { text: 'OK', onPress: () => router.back() },
+      Alert.alert("Success", "Transaction updated successfully!", [
+        { text: "OK", onPress: () => router.back() },
       ]);
     } catch (error) {
       console.error(error);
-      Alert.alert('Error', 'Failed to update transaction');
+      Alert.alert("Error", "Failed to update transaction");
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* Date */}
-          <Text style={styles.label}>Date (YYYY-MM-DD)</Text>
-          <Input
-            placeholder="Date (YYYY-MM-DD)"
-            value={date}
-            onChangeText={setDate}
-            style={styles.input}
-          />
-
-          {/* Description */}
-          <Text style={styles.label}>Description</Text>
-          <Input
-            placeholder="Description"
-            value={description}
-            onChangeText={setDescription}
-            style={styles.input}
-          />
-
-          {/* Type */}
           <Text style={styles.label}>Type</Text>
           <TouchableOpacity
             style={styles.pickerButton}
@@ -133,7 +120,6 @@ const EditTransactions = () => {
             </Text>
           </TouchableOpacity>
 
-          {/* Category */}
           <Text style={styles.label}>Category</Text>
           <TouchableOpacity
             style={styles.pickerButton}
@@ -142,7 +128,6 @@ const EditTransactions = () => {
             <Text style={styles.pickerButtonText}>{category}</Text>
           </TouchableOpacity>
 
-          {/* Amount */}
           <Text style={styles.label}>Amount</Text>
           <Input
             placeholder="Amount"
@@ -152,21 +137,67 @@ const EditTransactions = () => {
             style={styles.input}
           />
 
-          {/* Update Button */}
-          <Button title="Update Transaction" onPress={handleUpdateTransaction} style={styles.button} />
+          <Text style={styles.label}>Description</Text>
+          <Input
+            placeholder="Description"
+            value={description}
+            onChangeText={setDescription}
+            style={styles.input}
+          />
 
-          {/* Type Picker Modal */}
+          <Text style={styles.label}>Date</Text>
+          <Pressable
+            onPress={() => setShowDatePicker(true)}
+            style={styles.input}
+          >
+            <Text style={date ? styles.inputText : styles.placeholder}>
+              {date}
+            </Text>
+          </Pressable>
+          {showDatePicker && (
+            <DateTimePicker
+              value={dayjs(date, "YYYY-MM-DD").toDate()}
+              mode="date"
+              display={Platform.OS === "ios" ? "spinner" : "default"}
+              onChange={handleDateChange}
+              maximumDate={new Date()}
+            />
+          )}
+
+          <View style={styles.tabsContainer}>
+            {["Yesterday", "Today", "Tomorrow"].map((d) => (
+              <TouchableOpacity
+                key={d}
+                style={styles.tabButton}
+                onPress={() => {
+                  const newDate = dayjs()
+                    .add(d === "Yesterday" ? -1 : d === "Tomorrow" ? 1 : 0, "day")
+                    .format("YYYY-MM-DD");
+                  setDate(newDate);
+                }}
+              >
+                <Text style={styles.tabButtonText}>{d}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Button
+            title="Update Transaction"
+            onPress={handleUpdateTransaction}
+            style={styles.button}
+          />
+
           <Modal visible={showTypePicker} transparent animationType="slide">
             <View style={styles.modalContainer}>
               <View style={styles.modalContent}>
                 <Text style={styles.modalTitle}>Select Type</Text>
                 <ScrollView>
-                  {['expense', 'income'].map((t) => (
+                  {["expense", "income"].map((t) => (
                     <TouchableOpacity
                       key={t}
                       style={[styles.modalOption, type === t && styles.selectedOption]}
                       onPress={() => {
-                        setType(t); // triggers category reload via useEffect
+                        setType(t);
                         setShowTypePicker(false);
                       }}
                     >
@@ -191,7 +222,6 @@ const EditTransactions = () => {
             </View>
           </Modal>
 
-          {/* Category Picker Modal */}
           <Modal visible={showCategoryPicker} transparent animationType="slide">
             <View style={styles.modalContainer}>
               <View style={styles.modalContent}>
@@ -200,7 +230,10 @@ const EditTransactions = () => {
                   {categories.map((item) => (
                     <TouchableOpacity
                       key={item.id}
-                      style={[styles.modalOption, category === item.name && styles.selectedOption]}
+                      style={[
+                        styles.modalOption,
+                        category === item.name && styles.selectedOption,
+                      ]}
                       onPress={() => {
                         setCategory(item.name);
                         setShowCategoryPicker(false);
@@ -233,62 +266,79 @@ const EditTransactions = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#fff' },
+  container: { flex: 1, padding: 20, backgroundColor: "#fff" },
   scrollContent: { flexGrow: 1 },
   input: {
     marginBottom: 15,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
     borderRadius: 8,
-    paddingHorizontal: 10,
+    padding: 15,
+    justifyContent: "center",
   },
-  label: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
+  inputText: { fontSize: 16, color: "#000" },
+  placeholder: { fontSize: 16, color: "#aaa" },
+  label: { fontSize: 16, fontWeight: "600", marginBottom: 8 },
   pickerButton: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: "#ddd",
     borderRadius: 8,
     padding: 15,
     marginBottom: 15,
   },
   pickerButtonText: { fontSize: 16 },
   button: { marginTop: 10 },
+  tabsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 15,
+  },
+  tabButton: {
+    flex: 1,
+    padding: 10,
+    backgroundColor: "#f0f0f0",
+    marginHorizontal: 5,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  tabButtonText: { fontSize: 14, fontWeight: "600" },
   modalContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.5)",
     padding: 20,
   },
   modalContent: {
-    backgroundColor: 'white',
+    backgroundColor: "white",
     borderRadius: 12,
     padding: 20,
-    width: '100%',
-    maxHeight: '80%',
+    width: "100%",
+    maxHeight: "80%",
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 15,
-    textAlign: 'center',
+    textAlign: "center",
   },
   modalOption: {
     padding: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: "#f0f0f0",
     borderRadius: 8,
     marginBottom: 5,
   },
-  selectedOption: { backgroundColor: '#007AFF' },
-  modalOptionText: { fontSize: 16, color: '#333', textAlign: 'center' },
-  selectedOptionText: { color: '#fff', fontWeight: '600' },
+  selectedOption: { backgroundColor: "#007AFF" },
+  modalOptionText: { fontSize: 16, color: "#333", textAlign: "center" },
+  selectedOptionText: { color: "#fff", fontWeight: "600" },
   modalCancel: {
     padding: 15,
     marginTop: 28,
-    backgroundColor: '#fc4545ff',
+    backgroundColor: "#fc4545ff",
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
   },
-  modalCancelText: { color: '#fff', fontWeight: '600' },
+  modalCancelText: { color: "#fff", fontWeight: "600" },
 });
 
-export default EditTransactions;
+export default EditTransactionScreen;
