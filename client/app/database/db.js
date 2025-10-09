@@ -13,7 +13,8 @@ export const initDB = async () => {
         type TEXT NOT NULL,
         category TEXT NOT NULL,
         description TEXT,
-        date TEXT NOT NULL
+        date TEXT NOT NULL,
+        createdAt TEXT DEFAULT (datetime('now', 'localtime'))
       );
     `);
     
@@ -28,24 +29,34 @@ export const initDB = async () => {
 
       for (const row of oldData) {
         await db.runAsync(
-          'INSERT INTO transactions_new (amount, type, category, description, date) VALUES (?, ?, ?, ?, ?)',
+          `INSERT INTO transactions_new (amount, type, category, description, date, createdAt)
+           VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'))`,
           [
-            parseFloat(row.date) || 0,
-            row.category,                
-            row.description,           
-            row.type,      
-            row.amount                   
+            row.amount,
+            row.type,
+            row.category,
+            row.description,
+            row.date
           ]
         );
       }
       
-      // Drop old table
       await db.execAsync('DROP TABLE transactions');
-      
-      // Rename new table
+  
       await db.execAsync('ALTER TABLE transactions_new RENAME TO transactions');
       
       console.log('Data migration completed successfully');
+    } else {
+      const columnExists = await db.getAllAsync(
+        "PRAGMA table_info(transactions)"
+      );
+      const hasCreatedAt = columnExists.some(col => col.name === 'createdAt');
+      if (!hasCreatedAt) {
+        console.log('Adding createdAt column to existing transactions table...');
+        await db.execAsync(
+          "ALTER TABLE transactions ADD COLUMN createdAt TEXT DEFAULT (datetime('now', 'localtime'))"
+        );
+      }
     }
     
     console.log('Database initialized successfully');
@@ -54,6 +65,7 @@ export const initDB = async () => {
     throw error;
   }
 };
+
 
 export const addTransaction = async (amount, type, category, description, date) => {
   try {
@@ -119,5 +131,40 @@ export const clearAllTransactions = async () => {
   } catch (error) {
     console.error('Error clearing transactions:', error);
     return false;
+  }
+};
+
+export const updateTransaction = async (id, updatedFields) => {
+  try {
+    console.log('Updating transaction:', id, 'with fields:', updatedFields);
+
+    if (!id || typeof id !== 'number') {
+      throw new Error('Invalid transaction ID provided.');
+    }
+
+    const allowedFields = ['amount', 'type', 'category', 'description', 'date'];
+    const keys = Object.keys(updatedFields).filter((key) =>
+      allowedFields.includes(key)
+    );
+
+    if (keys.length === 0) {
+      throw new Error('No valid fields provided to update.');
+    }
+
+    const setClause = keys.map((key) => `${key} = ?`).join(', ');
+    const values = keys.map((key) => updatedFields[key]);
+
+    await db.runAsync(
+      `UPDATE transactions 
+       SET ${setClause}, createdAt = datetime('now', 'localtime') 
+       WHERE id = ?`,
+      [...values, id]
+    );
+
+    console.log('Transaction updated successfully:', id);
+    return true;
+  } catch (error) {
+    console.error('Error updating transaction:', error);
+    throw error;
   }
 };

@@ -393,7 +393,7 @@ const HomeScreen = () => {
           <View style={styles.transactionsHeader}>
             <Text style={styles.transactionsTitle}>
               Transactions ({transactions.length})
-              {(filterType || filterCategory) && ' (Filtered)'}
+              {(filterType || filterCategory)}
             </Text>
           </View>
 
@@ -417,46 +417,51 @@ const HomeScreen = () => {
               data={transactions}
               keyExtractor={(item) => item.id.toString()}
               renderItem={({ item }) => (
-                <View
-                  style={[
-                    styles.transactionItem,
-                    item.type === 'income' ? styles.incomeItem : styles.expenseItem,
-                  ]}
+                <TouchableOpacity
+                    onPress={() => router.push(`/screens/EditTransaction?id=${item.id}`)}
+                    activeOpacity={0.7}
                 >
-                  <View style={styles.transactionHeader}>
-                    <View style={styles.transactionMain}>
-                      <Text style={styles.transactionDescription}>
-                        {item.description}
+                  <View
+                    style={[
+                      styles.transactionItem,
+                      item.type === 'income' ? styles.incomeItem : styles.expenseItem,
+                    ]}
+                  >
+                    <View style={styles.transactionHeader}>
+                      <View style={styles.transactionMain}>
+                        <Text style={styles.transactionDescription}>
+                          {item.description}
+                        </Text>
+                        <Text style={styles.transactionDate}>{item.createdAt}</Text>
+                      </View>
+                      <Text
+                        style={[
+                          styles.transactionAmount,
+                          item.type === 'income' ? styles.income : styles.expense,
+                        ]}
+                      >
+                        ₹{item.amount.toFixed(0)}
                       </Text>
-                      <Text style={styles.transactionDate}>{item.date}</Text>
                     </View>
-                    <Text
-                      style={[
-                        styles.transactionAmount,
-                        item.type === 'income' ? styles.income : styles.expense,
-                      ]}
-                    >
-                      ₹{item.amount.toFixed(0)}
-                    </Text>
+                    <View style={styles.transactionFooter}>
+                      <Text style={styles.transactionCategory}>{item.category}</Text>
+                      <Text
+                        style={[
+                          styles.transactionType,
+                          item.type === 'income' ? styles.incomeText : styles.expenseText,
+                        ]}
+                      >
+                        {item.type.charAt(0).toUpperCase() + item.type.slice(1)}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.transactionFooter}>
-                    <Text style={styles.transactionCategory}>{item.category}</Text>
-                    <Text
-                      style={[
-                        styles.transactionType,
-                        item.type === 'income' ? styles.incomeText : styles.expenseText,
-                      ]}
-                    >
-                      {item.type.charAt(0).toUpperCase() + item.type.slice(1)}
-                    </Text>
-                  </View>
-                </View>
-              )}
-              scrollEnabled={false}
-            />
-          )}
-        </View>
 
+                </TouchableOpacity>
+                )}
+                scrollEnabled={false}
+              />
+            )}
+        </View>
         {renderTypePicker()}
         {renderCategoryPicker()}
         {renderSettingsModal()}
@@ -483,7 +488,6 @@ const styles = StyleSheet.create({
   graphButton: { borderRadius: 50, padding: 8, marginLeft: 10 },
   graphIcon: { fontSize: 22, color: '#fff' },
 
-  // Summary Styles
   summaryContainer: {
     marginBottom: 20,
   },
