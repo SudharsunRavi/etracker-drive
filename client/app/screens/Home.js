@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -9,10 +9,11 @@ import {
   Modal,
   RefreshControl,
   Alert,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { initDB, getTransactions, getCategories } from '../database/db';
-import { useRouter, useFocusEffect } from 'expo-router';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { initDB, getTransactions, getCategories } from "../database/db";
+import { useRouter, useFocusEffect } from "expo-router";
+import DateFilterModal from "../components/DateFilterModal";
 
 const HomeScreen = () => {
   const router = useRouter();
@@ -28,11 +29,18 @@ const HomeScreen = () => {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [categories, setCategories] = useState({ Expense: [], Income: [] });
 
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [dateFilter, setDateFilter] = useState({ type: "this_month" });
+
   useEffect(() => {
     const loadCategories = async () => {
       const data = await getCategories();
-      const expenseCategories = data.filter(c => c.type === 'expense').map(c => c.name);
-      const incomeCategories = data.filter(c => c.type === 'income').map(c => c.name);
+      const expenseCategories = data
+        .filter((c) => c.type === "expense")
+        .map((c) => c.name);
+      const incomeCategories = data
+        .filter((c) => c.type === "income")
+        .map((c) => c.name);
       setCategories({ Expense: expenseCategories, Income: incomeCategories });
     };
     loadCategories();
@@ -44,99 +52,264 @@ const HomeScreen = () => {
         await initDB();
         await loadTransactions();
       } catch (error) {
-        console.error('Initialization error:', error);
-        Alert.alert('Error', 'Failed to initialize database');
+        console.error("Initialization error:", error);
+        Alert.alert("Error", "Failed to initialize database");
       }
     };
-    
+
     initializeApp();
   }, []);
 
   const normalizeTransaction = (transaction) => {
-    const hasCorrectStructure = 
-      typeof transaction.amount === 'number' && 
-      (transaction.type === 'income' || transaction.type === 'expense');
-    
+    const hasCorrectStructure =
+      typeof transaction.amount === "number" &&
+      (transaction.type === "income" || transaction.type === "expense");
+
     if (hasCorrectStructure) {
       return {
         ...transaction,
         amount: parseFloat(transaction.amount || 0),
         type: transaction.type.toLowerCase(),
         category: transaction.category,
-        description: transaction.description || 'No description',
-        date: transaction.date
+        description: transaction.description || "No description",
+        date: transaction.date,
       };
     } else {
       const amount = parseFloat(
-        typeof transaction.amount === 'number' ? transaction.amount :
-        typeof transaction.date === 'string' && !isNaN(parseFloat(transaction.date)) ? transaction.date :
-        transaction.amount || 0
+        typeof transaction.amount === "number"
+          ? transaction.amount
+          : typeof transaction.date === "string" &&
+            !isNaN(parseFloat(transaction.date))
+          ? transaction.date
+          : transaction.amount || 0
       );
-      
-      const date = 
-        typeof transaction.date === 'string' && isNaN(parseFloat(transaction.date)) ? transaction.date :
-        typeof transaction.amount === 'string' ? transaction.amount :
-        transaction.date || 'Unknown date';
-      
-      let type = 'expense';
-      if (transaction.type?.toLowerCase() === 'income' || transaction.category?.toLowerCase() === 'income') {
-        type = 'income';
-      } else if (transaction.type?.toLowerCase() === 'expense' || transaction.category?.toLowerCase() === 'expense') {
-        type = 'expense';
-      }
-      
-      const category = 
-        categories.Income.includes(transaction.category) ? transaction.category :
-        categories.Expense.includes(transaction.category) ? transaction.category :
-        categories.Income.includes(transaction.description) ? transaction.description :
-        categories.Expense.includes(transaction.description) ? transaction.description :
-        transaction.category || 'Other';
 
-      const description = 
-        transaction.description && 
-        !categories.Income.includes(transaction.description) && 
-        !categories.Expense.includes(transaction.description) 
-          ? transaction.description 
-          : transaction.type || 'No description';
-      
+      const date =
+        typeof transaction.date === "string" &&
+        isNaN(parseFloat(transaction.date))
+          ? transaction.date
+          : typeof transaction.amount === "string"
+          ? transaction.amount
+          : transaction.date || "Unknown date";
+
+      let type = "expense";
+      if (
+        transaction.type?.toLowerCase() === "income" ||
+        transaction.category?.toLowerCase() === "income"
+      ) {
+        type = "income";
+      } else if (
+        transaction.type?.toLowerCase() === "expense" ||
+        transaction.category?.toLowerCase() === "expense"
+      ) {
+        type = "expense";
+      }
+
+      const category = categories.Income.includes(transaction.category)
+        ? transaction.category
+        : categories.Expense.includes(transaction.category)
+        ? transaction.category
+        : categories.Income.includes(transaction.description)
+        ? transaction.description
+        : categories.Expense.includes(transaction.description)
+        ? transaction.description
+        : transaction.category || "Other";
+
+      const description =
+        transaction.description &&
+        !categories.Income.includes(transaction.description) &&
+        !categories.Expense.includes(transaction.description)
+          ? transaction.description
+          : transaction.type || "No description";
+
       return {
         ...transaction,
         amount,
         type,
         category,
         description,
-        date
+        date,
       };
     }
   };
 
   const loadTransactions = useCallback(async () => {
     try {
-      console.log('Loading transactions with filters - Type:', filterType, 'Category:', filterCategory);
+      console.log(
+        "Loading transactions with filters - Type:",
+        filterType,
+        "Category:",
+        filterCategory,
+        "Date Filter:",
+        dateFilter
+      );
+
       const data = await getTransactions();
-      
+
       const normalizedData = data.map(normalizeTransaction);
       let filteredData = normalizedData;
-      
+
       if (filterType) {
-        filteredData = filteredData.filter(t => 
-          t.type.toLowerCase() === filterType.toLowerCase()
+        filteredData = filteredData.filter(
+          (t) => t.type.toLowerCase() === filterType.toLowerCase()
         );
       }
-      
+
       if (filterCategory) {
-        filteredData = filteredData.filter(t => 
-          t.category.toLowerCase() === filterCategory.toLowerCase()
+        filteredData = filteredData.filter(
+          (t) => t.category.toLowerCase() === filterCategory.toLowerCase()
         );
       }
+
+      if (dateFilter && dateFilter.type) {
+        const now = new Date();
+        let from, to;
+
+        switch (dateFilter.type) {
+          case "this_month":
+            from = new Date(now.getFullYear(), now.getMonth(), 1);
+            to = new Date(
+              now.getFullYear(),
+              now.getMonth() + 1,
+              0,
+              23,
+              59,
+              59,
+              999
+            );
+            break;
+          case "last_month":
+            from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            to = new Date(
+              now.getFullYear(),
+              now.getMonth(),
+              0,
+              23,
+              59,
+              59,
+              999
+            );
+            break;
+          case "last_3_months":
+            from = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+            to = new Date(
+              now.getFullYear(),
+              now.getMonth() + 1,
+              0,
+              23,
+              59,
+              59,
+              999
+            );
+            break;
+          case "last_6_months":
+            from = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+            to = new Date(
+              now.getFullYear(),
+              now.getMonth() + 1,
+              0,
+              23,
+              59,
+              59,
+              999
+            );
+            break;
+          case "past_1_year":
+            from = new Date(
+              now.getFullYear() - 1,
+              now.getMonth(),
+              now.getDate()
+            );
+            to = new Date(
+              now.getFullYear(),
+              now.getMonth() + 1,
+              0,
+              23,
+              59,
+              59,
+              999
+            );
+            break;
+          case "custom":
+            from = new Date(dateFilter.from);
+            to = new Date(dateFilter.to);
+            to.setHours(23, 59, 59, 999);
+            break;
+          default:
+            from = new Date(0);
+            to = new Date(
+              now.getFullYear(),
+              now.getMonth() + 1,
+              0,
+              23,
+              59,
+              59,
+              999
+            );
+        }
+
+        console.log("Date filter range:", {
+          from: from.toISOString(),
+          to: to.toISOString(),
+        });
+
+        filteredData = filteredData.filter((t) => {
+          if (!t.date) return false;
+
+          const txDate = new Date(t.date);
+          const txDateStart = new Date(
+            txDate.getFullYear(),
+            txDate.getMonth(),
+            txDate.getDate()
+          );
+
+          const isInRange = txDateStart >= from && txDateStart <= to;
+
+          if (!isInRange) {
+            console.log("Filtered out transaction:", {
+              date: t.date,
+              txDate: txDateStart.toISOString(),
+              from: from.toISOString(),
+              to: to.toISOString(),
+            });
+          }
+
+          return isInRange;
+        });
+      }
+
       filteredData.sort((a, b) => new Date(b.date) - new Date(a.date));
-      
+
+      console.log("Final filtered transactions:", filteredData.length);
       setTransactions(filteredData);
     } catch (error) {
-      console.error('Error loading transactions:', error);
-      Alert.alert('Error', 'Failed to load transactions');
+      console.error("Error loading transactions:", error);
+      Alert.alert("Error", "Failed to load transactions");
     }
-  }, [filterType, filterCategory]);
+  }, [filterType, filterCategory, dateFilter]);
+
+  const getDateFilterText = () => {
+    if (!dateFilter) return "All Dates";
+
+    switch (dateFilter.type) {
+      case "this_month":
+        return "This Month";
+      case "last_month":
+        return "Last Month";
+      case "last_3_months":
+        return "Last 3 Months";
+      case "last_6_months":
+        return "Last 6 Months";
+      case "past_1_year":
+        return "Past 1 Year";
+      case "custom":
+        const from = new Date(dateFilter.from).toLocaleDateString();
+        const to = new Date(dateFilter.to).toLocaleDateString();
+        return `${from} - ${to}`;
+      default:
+        return "All Dates";
+    }
+  };
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -151,14 +324,14 @@ const HomeScreen = () => {
   );
 
   const handleTypeFilter = (type) => {
-    console.log('Setting type filter:', type);
+    console.log("Setting type filter:", type);
     setFilterType(type);
     setFilterCategory(null);
     setShowTypePicker(false);
   };
 
   const handleCategoryFilter = (category) => {
-    console.log('Setting category filter:', category);
+    console.log("Setting category filter:", category);
     setFilterCategory(category);
     setShowCategoryPicker(false);
   };
@@ -166,19 +339,20 @@ const HomeScreen = () => {
   const clearAllFilters = () => {
     setFilterType(null);
     setFilterCategory(null);
+    setDateFilter(null);
   };
 
   const calculateTotals = () => {
     const incomeTotal = transactions
-      .filter(t => t.type === 'income')
+      .filter((t) => t.type === "income")
       .reduce((sum, t) => sum + (t.amount || 0), 0);
-    
+
     const expenseTotal = transactions
-      .filter(t => t.type === 'expense')
+      .filter((t) => t.type === "expense")
       .reduce((sum, t) => sum + (t.amount || 0), 0);
-    
+
     const balance = incomeTotal - expenseTotal;
-    
+
     return { incomeTotal, expenseTotal, balance };
   };
 
@@ -198,27 +372,46 @@ const HomeScreen = () => {
           <Text style={styles.modalTitle}>Filter by Type</Text>
 
           <TouchableOpacity
-            style={[styles.modalOption, filterType === null && styles.selectedOption]}
+            style={[
+              styles.modalOption,
+              filterType === null && styles.selectedOption,
+            ]}
             onPress={() => handleTypeFilter(null)}
           >
-            <Text style={[styles.modalOptionText, filterType === null && styles.selectedOptionText]}>
+            <Text
+              style={[
+                styles.modalOptionText,
+                filterType === null && styles.selectedOptionText,
+              ]}
+            >
               All Types
             </Text>
           </TouchableOpacity>
 
-          {['Income', 'Expense'].map((t) => (
+          {["Income", "Expense"].map((t) => (
             <TouchableOpacity
               key={t}
-              style={[styles.modalOption, filterType === t && styles.selectedOption]}
+              style={[
+                styles.modalOption,
+                filterType === t && styles.selectedOption,
+              ]}
               onPress={() => handleTypeFilter(t)}
             >
-              <Text style={[styles.modalOptionText, filterType === t && styles.selectedOptionText]}>
+              <Text
+                style={[
+                  styles.modalOptionText,
+                  filterType === t && styles.selectedOptionText,
+                ]}
+              >
                 {t}
               </Text>
             </TouchableOpacity>
           ))}
 
-          <TouchableOpacity style={styles.modalCancel} onPress={() => setShowTypePicker(false)}>
+          <TouchableOpacity
+            style={styles.modalCancel}
+            onPress={() => setShowTypePicker(false)}
+          >
             <Text style={styles.modalCancelText}>Cancel</Text>
           </TouchableOpacity>
         </View>
@@ -236,10 +429,18 @@ const HomeScreen = () => {
             <Text style={styles.modalTitle}>Filter by Category</Text>
 
             <TouchableOpacity
-              style={[styles.modalOption, filterCategory === null && styles.selectedOption]}
+              style={[
+                styles.modalOption,
+                filterCategory === null && styles.selectedOption,
+              ]}
               onPress={() => handleCategoryFilter(null)}
             >
-              <Text style={[styles.modalOptionText, filterCategory === null && styles.selectedOptionText]}>
+              <Text
+                style={[
+                  styles.modalOptionText,
+                  filterCategory === null && styles.selectedOptionText,
+                ]}
+              >
                 All Categories
               </Text>
             </TouchableOpacity>
@@ -247,16 +448,27 @@ const HomeScreen = () => {
             {availableCategories.map((item) => (
               <TouchableOpacity
                 key={item}
-                style={[styles.modalOption, filterCategory === item && styles.selectedOption]}
+                style={[
+                  styles.modalOption,
+                  filterCategory === item && styles.selectedOption,
+                ]}
                 onPress={() => handleCategoryFilter(item)}
               >
-                <Text style={[styles.modalOptionText, filterCategory === item && styles.selectedOptionText]}>
+                <Text
+                  style={[
+                    styles.modalOptionText,
+                    filterCategory === item && styles.selectedOptionText,
+                  ]}
+                >
                   {item}
                 </Text>
               </TouchableOpacity>
             ))}
 
-            <TouchableOpacity style={styles.modalCancel} onPress={() => setShowCategoryPicker(false)}>
+            <TouchableOpacity
+              style={styles.modalCancel}
+              onPress={() => setShowCategoryPicker(false)}
+            >
               <Text style={styles.modalCancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -273,26 +485,38 @@ const HomeScreen = () => {
 
           <TouchableOpacity
             style={[styles.actionButton, { marginBottom: 10 }]}
-            onPress={() => { setShowSettingsModal(false); router.push('/screens/Category'); }}
+            onPress={() => {
+              setShowSettingsModal(false);
+              router.push("/screens/Category");
+            }}
           >
             <Text style={styles.actionButtonText}>Category</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.actionButton, { marginBottom: 10 }]}
-            onPress={() => { setShowSettingsModal(false); router.push('/screens/Backup'); }}
+            onPress={() => {
+              setShowSettingsModal(false);
+              router.push("/screens/Backup");
+            }}
           >
             <Text style={styles.actionButtonText}>Backup</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => { setShowSettingsModal(false); router.push('/screens/Restore'); }}
+            onPress={() => {
+              setShowSettingsModal(false);
+              router.push("/screens/Restore");
+            }}
           >
             <Text style={styles.actionButtonText}>Restore</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.modalCancel} onPress={() => setShowSettingsModal(false)}>
+          <TouchableOpacity
+            style={styles.modalCancel}
+            onPress={() => setShowSettingsModal(false)}
+          >
             <Text style={styles.modalCancelText}>Close</Text>
           </TouchableOpacity>
         </View>
@@ -300,29 +524,32 @@ const HomeScreen = () => {
     </Modal>
   );
 
-  const getTypeFilterText = () => filterType ? filterType : 'All Types';
-  const getCategoryFilterText = () => filterCategory ? filterCategory : 'All Categories';
+  const getTypeFilterText = () => (filterType ? filterType : "All Types");
+  const getCategoryFilterText = () =>
+    filterCategory ? filterCategory : "All Categories";
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
         <View style={styles.headerContainer}>
           <Text style={styles.title}>Expense Tracker</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
             <TouchableOpacity
               style={styles.addButton}
-              onPress={() => router.push('/screens/AddTransaction')}
+              onPress={() => router.push("/screens/AddTransaction")}
             >
               <Text style={styles.addButtonText}>➕</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.graphButton}
-              onPress={() => router.push('/screens/Charts')}
+              onPress={() => router.push("/screens/Charts")}
             >
               <Text style={styles.graphIcon}>📊</Text>
             </TouchableOpacity>
@@ -339,11 +566,16 @@ const HomeScreen = () => {
         <View style={styles.summaryContainer}>
           <View style={[styles.summaryCard, styles.balanceCard]}>
             <Text style={styles.summaryLabel}>Balance</Text>
-            <Text style={[styles.summaryAmount, balance >= 0 ? styles.positive : styles.negative]}>
+            <Text
+              style={[
+                styles.summaryAmount,
+                balance >= 0 ? styles.positive : styles.negative,
+              ]}
+            >
               ₹{balance.toFixed(2)}
             </Text>
           </View>
-          
+
           <View style={styles.summaryRow}>
             <View style={[styles.summaryCard, styles.incomeCard]}>
               <Text style={styles.summaryLabel}>Income</Text>
@@ -351,7 +583,7 @@ const HomeScreen = () => {
                 ₹{incomeTotal.toFixed(2)}
               </Text>
             </View>
-            
+
             <View style={[styles.summaryCard, styles.expenseCard]}>
               <Text style={styles.summaryLabel}>Expenses</Text>
               <Text style={[styles.summaryAmount, styles.negative]}>
@@ -362,39 +594,63 @@ const HomeScreen = () => {
         </View>
 
         <View style={styles.filterContainer}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[
               styles.filterButton,
-              filterType && styles.activeFilterButton
-            ]} 
+              filterType && styles.activeFilterButton,
+            ]}
             onPress={() => setShowTypePicker(true)}
           >
-            <Text style={[
-              styles.filterButtonText,
-              filterType && styles.activeFilterButtonText
-            ]}>
+            <Text
+              style={[
+                styles.filterButtonText,
+                filterType && styles.activeFilterButtonText,
+              ]}
+            >
               {getTypeFilterText()}
             </Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={[
               styles.filterButton,
-              filterCategory && styles.activeFilterButton
-            ]} 
+              filterCategory && styles.activeFilterButton,
+            ]}
             onPress={() => setShowCategoryPicker(true)}
           >
-            <Text style={[
-              styles.filterButtonText,
-              filterCategory && styles.activeFilterButtonText
-            ]}>
+            <Text
+              style={[
+                styles.filterButtonText,
+                filterCategory && styles.activeFilterButtonText,
+              ]}
+            >
               {getCategoryFilterText()}
             </Text>
           </TouchableOpacity>
         </View>
 
+        <TouchableOpacity
+          style={[styles.filterButton, dateFilter && styles.activeFilterButton]}
+          onPress={() => setShowDatePicker(true)}
+        >
+          <Text
+            style={[
+              styles.filterButtonText,
+              dateFilter && styles.activeFilterButtonText,
+            ]}
+          >
+            {getDateFilterText()}
+          </Text>
+        </TouchableOpacity>
+
+        <DateFilterModal
+          visible={showDatePicker}
+          onClose={() => setShowDatePicker(false)}
+          onSelect={(filter) => setDateFilter(filter)}
+        />
+
         {(filterType || filterCategory) && (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.clearFilterButton}
             onPress={clearAllFilters}
           >
@@ -405,8 +661,7 @@ const HomeScreen = () => {
         <View style={styles.transactionsContainer}>
           <View style={styles.transactionsHeader}>
             <Text style={styles.transactionsTitle}>
-              Transactions ({transactions.length})
-              {(filterType || filterCategory)}
+              Transactions ({transactions.length}){filterType || filterCategory}
             </Text>
           </View>
 
@@ -415,9 +670,9 @@ const HomeScreen = () => {
               <Text style={styles.noTransactions}>No transactions found</Text>
               {(filterType || filterCategory) && (
                 <Text style={styles.noTransactionsHint}>
-                  Try changing your filters or {''}
-                  <Text 
-                    style={styles.clearFilterLink} 
+                  Try changing your filters or {""}
+                  <Text
+                    style={styles.clearFilterLink}
                     onPress={clearAllFilters}
                   >
                     clear all filters
@@ -431,13 +686,17 @@ const HomeScreen = () => {
               keyExtractor={(item) => item.id.toString()}
               renderItem={({ item }) => (
                 <TouchableOpacity
-                    onPress={() => router.push(`/screens/EditTransaction?id=${item.id}`)}
-                    activeOpacity={0.7}
+                  onPress={() =>
+                    router.push(`/screens/EditTransaction?id=${item.id}`)
+                  }
+                  activeOpacity={0.7}
                 >
                   <View
                     style={[
                       styles.transactionItem,
-                      item.type === 'income' ? styles.incomeItem : styles.expenseItem,
+                      item.type === "income"
+                        ? styles.incomeItem
+                        : styles.expenseItem,
                     ]}
                   >
                     <View style={styles.transactionHeader}>
@@ -445,35 +704,60 @@ const HomeScreen = () => {
                         <Text style={styles.transactionDescription}>
                           {item.description}
                         </Text>
-                        <Text style={styles.transactionDate}>{item.createdAt}</Text>
+                        <Text style={styles.transactionDate}>
+                          {item.date
+                            ? new Date(item.date).toLocaleDateString("en-US", {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                              })
+                            : "Unknown Date"}
+                          {" ("}
+                          {item.createdAt
+                            ? new Date(item.createdAt).toLocaleTimeString(
+                                "en-US",
+                                {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                  hour12: true,
+                                }
+                              )
+                            : ""}
+                          {")"}
+                        </Text>
                       </View>
                       <Text
                         style={[
                           styles.transactionAmount,
-                          item.type === 'income' ? styles.income : styles.expense,
+                          item.type === "income"
+                            ? styles.income
+                            : styles.expense,
                         ]}
                       >
                         ₹{item.amount.toFixed(0)}
                       </Text>
                     </View>
                     <View style={styles.transactionFooter}>
-                      <Text style={styles.transactionCategory}>{item.category}</Text>
+                      <Text style={styles.transactionCategory}>
+                        {item.category}
+                      </Text>
                       <Text
                         style={[
                           styles.transactionType,
-                          item.type === 'income' ? styles.incomeText : styles.expenseText,
+                          item.type === "income"
+                            ? styles.incomeText
+                            : styles.expenseText,
                         ]}
                       >
                         {item.type.charAt(0).toUpperCase() + item.type.slice(1)}
                       </Text>
                     </View>
                   </View>
-
                 </TouchableOpacity>
-                )}
-                scrollEnabled={false}
-              />
-            )}
+              )}
+              scrollEnabled={false}
+            />
+          )}
         </View>
         {renderTypePicker()}
         {renderCategoryPicker()}
@@ -484,29 +768,34 @@ const HomeScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#ffffff' },
+  container: { flex: 1, backgroundColor: "#ffffff" },
   scrollContent: { flexGrow: 1, paddingHorizontal: 20, paddingBottom: 20 },
 
   headerContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginVertical: 20,
   },
-  title: { fontSize: 28, fontWeight: 'bold', color: '#333' },
-  settingsButton: { backgroundColor: '#f0f0f0', borderRadius: 50, padding: 0, marginLeft: 10 },
+  title: { fontSize: 28, fontWeight: "bold", color: "#333" },
+  settingsButton: {
+    backgroundColor: "#f0f0f0",
+    borderRadius: 50,
+    padding: 0,
+    marginLeft: 10,
+  },
   settingsIcon: { fontSize: 22 },
   addButton: { borderRadius: 50 },
-  addButtonText: { fontSize: 22, color: '#fff' },
+  addButtonText: { fontSize: 22, color: "#fff" },
   graphButton: { borderRadius: 50, padding: 8, marginLeft: 10 },
-  graphIcon: { fontSize: 22, color: '#fff' },
+  graphIcon: { fontSize: 22, color: "#fff" },
 
   summaryContainer: {
     marginBottom: 20,
   },
   summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     gap: 10,
     marginTop: 10,
   },
@@ -514,80 +803,81 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
     borderRadius: 12,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
   },
   balanceCard: {
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
     borderLeftWidth: 4,
-    borderLeftColor: '#007AFF',
+    borderLeftColor: "#007AFF",
   },
   incomeCard: {
-    backgroundColor: '#f0f9f0',
+    backgroundColor: "#f0f9f0",
     borderLeftWidth: 4,
-    borderLeftColor: '#34C759',
+    borderLeftColor: "#34C759",
   },
   expenseCard: {
-    backgroundColor: '#fef0f0',
+    backgroundColor: "#fef0f0",
     borderLeftWidth: 4,
-    borderLeftColor: '#FF3B30',
+    borderLeftColor: "#FF3B30",
   },
   summaryLabel: {
     fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
+    color: "#666",
+    fontWeight: "500",
     marginBottom: 4,
   },
   summaryAmount: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   positive: {
-    color: '#34C759',
+    color: "#34C759",
   },
   negative: {
-    color: '#FF3B30',
+    color: "#FF3B30",
   },
 
-  filterContainer: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
+  filterContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginBottom: 15,
     gap: 10,
   },
   filterButton: {
     flex: 1,
     padding: 12,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: '#e9ecef',
+    borderColor: "#e9ecef",
+    maxHeight: 45,
   },
   activeFilterButton: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+    backgroundColor: "#007AFF",
+    borderColor: "#007AFF",
   },
-  filterButtonText: { fontSize: 16, color: '#333', fontWeight: '500' },
-  activeFilterButtonText: { color: '#fff', fontWeight: '600' },
+  filterButtonText: { fontSize: 16, color: "#333", fontWeight: "500" },
+  activeFilterButtonText: { color: "#fff", fontWeight: "600" },
 
   clearFilterButton: {
     padding: 12,
-    backgroundColor: '#6c757d',
+    backgroundColor: "#6c757d",
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 15,
   },
-  clearFilterButtonText: { color: '#fff', fontWeight: '500' },
+  clearFilterButtonText: { color: "#fff", fontWeight: "500" },
 
   transactionsContainer: {
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
     borderRadius: 12,
     padding: 20,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
@@ -596,144 +886,144 @@ const styles = StyleSheet.create({
   transactionsHeader: {
     marginBottom: 15,
   },
-  transactionsTitle: { 
-    fontSize: 20, 
-    fontWeight: 'bold', 
-    color: '#333',
+  transactionsTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#333",
   },
-  
+
   noTransactionsContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 30,
   },
-  noTransactions: { 
-    textAlign: 'center', 
-    color: '#666', 
-    fontStyle: 'italic', 
+  noTransactions: {
+    textAlign: "center",
+    color: "#666",
+    fontStyle: "italic",
     fontSize: 16,
     marginBottom: 8,
   },
   noTransactionsHint: {
-    textAlign: 'center',
-    color: '#888',
+    textAlign: "center",
+    color: "#888",
     fontSize: 14,
   },
   clearFilterLink: {
-    color: '#007AFF',
-    fontWeight: '500',
-    textDecorationLine: 'underline',
+    color: "#007AFF",
+    fontWeight: "500",
+    textDecorationLine: "underline",
   },
 
   transactionItem: {
-    backgroundColor: '#ffffff',
+    backgroundColor: "#ffffff",
     padding: 15,
     borderRadius: 8,
     marginBottom: 10,
     borderLeftWidth: 4,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 1,
     elevation: 2,
   },
-  incomeItem: { borderLeftColor: '#34C759' },
-  expenseItem: { borderLeftColor: '#FF3B30' },
-  transactionHeader: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'flex-start',
+  incomeItem: { borderLeftColor: "#34C759" },
+  expenseItem: { borderLeftColor: "#FF3B30" },
+  transactionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     marginBottom: 8,
   },
   transactionMain: {
     flex: 1,
     marginRight: 10,
   },
-  transactionDate: { 
-    fontSize: 12, 
-    color: '#666', 
+  transactionDate: {
+    fontSize: 12,
+    color: "#666",
     marginTop: 4,
   },
-  transactionAmount: { 
-    fontSize: 18, 
-    fontWeight: 'bold',
+  transactionAmount: {
+    fontSize: 18,
+    fontWeight: "bold",
     minWidth: 80,
-    textAlign: 'right',
+    textAlign: "right",
   },
-  income: { color: '#34C759' },
-  expense: { color: '#FF3B30' },
-  transactionDescription: { 
-    fontSize: 16, 
-    fontWeight: '600', 
-    color: '#333',
+  income: { color: "#34C759" },
+  expense: { color: "#FF3B30" },
+  transactionDescription: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
   },
-  transactionFooter: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center' 
+  transactionFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   transactionCategory: {
     fontSize: 14,
-    color: '#666',
-    backgroundColor: '#e9ecef',
+    color: "#666",
+    backgroundColor: "#e9ecef",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
   },
-  transactionType: { 
-    fontSize: 12, 
-    fontWeight: '500', 
-    textTransform: 'uppercase' 
+  transactionType: {
+    fontSize: 12,
+    fontWeight: "500",
+    textTransform: "uppercase",
   },
-  incomeText: { color: '#34C759' },
-  expenseText: { color: '#FF3B30' },
+  incomeText: { color: "#34C759" },
+  expenseText: { color: "#FF3B30" },
 
-  modalContainer: { 
-    flex: 1, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    backgroundColor: 'rgba(0,0,0,0.5)', 
-    padding: 20 
+  modalContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    padding: 20,
   },
-  modalContent: { 
-    backgroundColor: 'white', 
-    borderRadius: 12, 
-    padding: 20, 
-    width: '100%', 
-    maxHeight: '80%' 
+  modalContent: {
+    backgroundColor: "white",
+    borderRadius: 12,
+    padding: 20,
+    width: "100%",
+    maxHeight: "80%",
   },
-  modalTitle: { 
-    fontSize: 18, 
-    fontWeight: 'bold', 
-    marginBottom: 15, 
-    textAlign: 'center' 
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 15,
+    textAlign: "center",
   },
-  modalOption: { 
-    padding: 15, 
-    borderBottomWidth: 1, 
-    borderBottomColor: '#f0f0f0', 
-    borderRadius: 8, 
-    marginBottom: 5 
+  modalOption: {
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+    borderRadius: 8,
+    marginBottom: 5,
   },
-  selectedOption: { backgroundColor: '#007AFF' },
-  modalOptionText: { fontSize: 16, color: '#333', textAlign: 'center' },
-  selectedOptionText: { color: '#fff', fontWeight: '600' },
-  modalCancel: { 
-    padding: 15, 
-    marginTop: 10, 
-    backgroundColor: '#6c757d', 
-    borderRadius: 8, 
-    alignItems: 'center' 
+  selectedOption: { backgroundColor: "#007AFF" },
+  modalOptionText: { fontSize: 16, color: "#333", textAlign: "center" },
+  selectedOptionText: { color: "#fff", fontWeight: "600" },
+  modalCancel: {
+    padding: 15,
+    marginTop: 10,
+    backgroundColor: "#6c757d",
+    borderRadius: 8,
+    alignItems: "center",
   },
-  modalCancelText: { color: '#fff', fontWeight: '600' },
+  modalCancelText: { color: "#fff", fontWeight: "600" },
   actionButton: {
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
     borderRadius: 12,
     padding: 15,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: '#e9ecef',
+    borderColor: "#e9ecef",
   },
-  actionButtonText: { fontSize: 14, fontWeight: '600', color: '#333' },
+  actionButtonText: { fontSize: 14, fontWeight: "600", color: "#333" },
 });
 
 export default HomeScreen;

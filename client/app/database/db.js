@@ -39,13 +39,14 @@ export const initDB = async () => {
       for (const row of oldData) {
         await db.runAsync(
           `INSERT INTO transactions_new (amount, type, category, description, date, createdAt)
-           VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'))`,
+          VALUES (?, ?, ?, ?, ?, COALESCE(?, datetime('now', 'localtime')))`,
           [
             row.amount,
             row.type,
             row.category,
             row.description,
-            row.date
+            row.date,
+            row.createdAt
           ]
         );
       }
