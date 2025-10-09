@@ -137,9 +137,9 @@ const EditTransactionScreen = () => {
             style={styles.input}
           />
 
-          <Text style={styles.label}>Description</Text>
+          <Text style={styles.label}>Title</Text>
           <Input
-            placeholder="Description"
+            placeholder="Title"
             value={description}
             onChangeText={setDescription}
             style={styles.input}
