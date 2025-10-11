@@ -7,14 +7,14 @@ export const initDB = async () => {
     console.log('Initializing database...');
     
     await db.execAsync(`
-      CREATE TABLE IF NOT EXISTS transactions_new (
+      CREATE TABLE IF NOT EXISTS transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         amount REAL NOT NULL,
         type TEXT NOT NULL,
         category TEXT NOT NULL,
         description TEXT,
         date TEXT NOT NULL,
-        createdAt TEXT DEFAULT (datetime('now', 'localtime'))
+        createdAt TEXT DEFAULT (datetime('now'))
       );
     `);
 
@@ -22,71 +22,48 @@ export const initDB = async () => {
       CREATE TABLE IF NOT EXISTS categories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
-        type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
-        createdAt TEXT DEFAULT (datetime('now', 'localtime'))
+        type TEXT NOT NULL,
+        createdAt TEXT DEFAULT (datetime('now'))
       );
     `);
-    
-    const oldTableExists = await db.getAllAsync(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='transactions'"
-    );
-    
-    if (oldTableExists.length > 0) {
-      console.log('Migrating data from old table...');
-      const oldData = await db.getAllAsync('SELECT * FROM transactions');
-      console.log('Old data to migrate:', oldData);
 
-      for (const row of oldData) {
-        await db.runAsync(
-          `INSERT INTO transactions_new (amount, type, category, description, date, createdAt)
-          VALUES (?, ?, ?, ?, ?, COALESCE(?, datetime('now', 'localtime')))`,
-          [
-            row.amount,
-            row.type,
-            row.category,
-            row.description,
-            row.date,
-            row.createdAt
-          ]
-        );
-      }
-      
-      await db.execAsync('DROP TABLE transactions');
-  
-      await db.execAsync('ALTER TABLE transactions_new RENAME TO transactions');
-      
-      console.log('Data migration completed successfully');
-    } else {
-      const columnExists = await db.getAllAsync(
-        "PRAGMA table_info(transactions)"
-      );
-      const hasCreatedAt = columnExists.some(col => col.name === 'createdAt');
-      if (!hasCreatedAt) {
-        console.log('Adding createdAt column to existing transactions table...');
-        await db.execAsync(
-          "ALTER TABLE transactions ADD COLUMN createdAt TEXT DEFAULT (datetime('now', 'localtime'))"
-        );
-      }
+    try {
+      await db.execAsync(`
+        INSERT OR IGNORE INTO categories (name, type) VALUES 
+        ('Salary', 'income'),
+        ('Freelance', 'income'),
+        ('Investment', 'income'),
+        ('Food', 'expense'),
+        ('Transport', 'expense'),
+        ('Entertainment', 'expense'),
+        ('Shopping', 'expense'),
+        ('Bills', 'expense'),
+        ('Healthcare', 'expense')
+      `);
+      console.log('Default categories inserted');
+    } catch (error) {
+      console.log('Default categories may already exist:', error.message);
     }
-    
+
     console.log('Database initialized successfully');
+    return true;
   } catch (error) {
     console.error('Error initializing database:', error);
     throw error;
   }
 };
 
-
 export const addTransaction = async (amount, type, category, description, date) => {
   try {
-    console.log('Adding transaction with:', { amount, type, category, description, date });
+    console.log('Adding transaction:', { amount, type, category, description, date });
     
-    await db.runAsync(
+    const result = await db.runAsync(
       'INSERT INTO transactions (amount, type, category, description, date) VALUES (?, ?, ?, ?, ?)',
       [amount, type, category, description, date]
     );
-    console.log('Transaction added successfully');
-    return true;
+    
+    console.log('Transaction added successfully, ID:', result.lastInsertRowId);
+    return result.lastInsertRowId;
   } catch (error) {
     console.error('Error adding transaction:', error);
     throw error;
@@ -95,41 +72,60 @@ export const addTransaction = async (amount, type, category, description, date) 
 
 export const getTransactions = async (type = null, category = null) => {
   try {
-    console.log('Getting transactions with filters - Type:', type, 'Category:', category);
-    
-    let query = 'SELECT * FROM transactions';
+    let query = 'SELECT * FROM transactions WHERE 1=1';
     let params = [];
 
-    if (type || category) {
-      query += ' WHERE ';
-      const conditions = [];
-      
-      if (type) {
-        conditions.push('type = ?');
-        params.push(type);
-      }
-      
-      if (category) {
-        conditions.push('category = ?');
-        params.push(category);
-      }
-      
-      query += conditions.join(' AND ');
+    if (type) {
+      query += ' AND type = ?';
+      params.push(type);
+    }
+    
+    if (category) {
+      query += ' AND category = ?';
+      params.push(category);
     }
 
     query += ' ORDER BY date DESC';
-    
-    console.log('Final query:', query);
-    console.log('Query params:', params);
-    
+
+    console.log('Executing query:', query, 'Params:', params);
+
     const result = await db.getAllAsync(query, params);
-    console.log('Query result count:', result.length);
-    console.log('Query result:', result);
+    console.log(`Found ${result.length} transactions`);
     
     return result;
   } catch (error) {
     console.error('Error getting transactions:', error);
-    return [];
+    if (error.message?.includes('no such table')) {
+      return [];
+    }
+    throw error;
+  }
+};
+
+export const getTransactionsWithDateRange = async (dateFilter = null) => {
+  try {
+    let query = 'SELECT * FROM transactions WHERE 1=1';
+    let params = [];
+
+    if (dateFilter && dateFilter.from && dateFilter.to) {
+      query += ' AND date BETWEEN ? AND ?';
+      params.push(dateFilter.from, dateFilter.to);
+    }
+
+    query += ' ORDER BY date DESC';
+
+    console.log('Date filter query:', query, 'Params:', params);
+
+    const result = await db.getAllAsync(query, params);
+    console.log(`Found ${result.length} transactions with date filter`);
+    
+    return result;
+  } catch (error) {
+    console.error('Error getting transactions with date filter:', error);
+    if (error.message?.includes('no such table')) {
+      return [];
+    }
+    throw error;
   }
 };
 
@@ -140,7 +136,7 @@ export const clearAllTransactions = async () => {
     return true;
   } catch (error) {
     console.error('Error clearing transactions:', error);
-    return false;
+    throw error;
   }
 };
 
@@ -165,9 +161,7 @@ export const updateTransaction = async (id, updatedFields) => {
     const values = keys.map((key) => updatedFields[key]);
 
     await db.runAsync(
-      `UPDATE transactions 
-       SET ${setClause}, createdAt = datetime('now', 'localtime') 
-       WHERE id = ?`,
+      `UPDATE transactions SET ${setClause} WHERE id = ?`,
       [...values, id]
     );
 
@@ -179,37 +173,65 @@ export const updateTransaction = async (id, updatedFields) => {
   }
 };
 
+export const deleteTransaction = async (id) => {
+  try {
+    await db.runAsync('DELETE FROM transactions WHERE id = ?', [id]);
+    console.log('Transaction deleted successfully:', id);
+    return true;
+  } catch (error) {
+    console.error('Error deleting transaction:', error);
+    throw error;
+  }
+};
+
 export const getCategories = async (type = null) => {
   try {
+    let query = 'SELECT * FROM categories';
+    let params = [];
+
     if (type) {
-      return await db.getAllAsync('SELECT * FROM categories WHERE type = ? ORDER BY name', [type]);
+      query += ' WHERE type = ?';
+      params.push(type);
     }
-    return await db.getAllAsync('SELECT * FROM categories ORDER BY type, name');
+
+    query += ' ORDER BY type, name';
+
+    const result = await db.getAllAsync(query, params);
+    return result;
   } catch (error) {
     console.error('Error fetching categories:', error);
-    return [];
+    if (error.message?.includes('no such table')) {
+      return [];
+    }
+    throw error;
   }
 };
 
 export const addCategory = async (name, type) => {
   try {
-    await db.runAsync('INSERT INTO categories (name, type) VALUES (?, ?)', [name, type]);
-    console.log('Category added:', name);
-    return true;
+    const result = await db.runAsync(
+      'INSERT INTO categories (name, type) VALUES (?, ?)',
+      [name, type]
+    );
+    console.log('Category added:', name, 'ID:', result.lastInsertRowId);
+    return result.lastInsertRowId;
   } catch (error) {
     console.error('Error adding category:', error);
-    return false;
+    throw error;
   }
 };
 
 export const updateCategory = async (id, name, type) => {
   try {
-    await db.runAsync('UPDATE categories SET name = ?, type = ? WHERE id = ?', [name, type, id]);
+    await db.runAsync(
+      'UPDATE categories SET name = ?, type = ? WHERE id = ?',
+      [name, type, id]
+    );
     console.log('Category updated:', id);
     return true;
   } catch (error) {
     console.error('Error updating category:', error);
-    return false;
+    throw error;
   }
 };
 
@@ -220,7 +242,72 @@ export const deleteCategory = async (id) => {
     return true;
   } catch (error) {
     console.error('Error deleting category:', error);
-    return false;
+    throw error;
   }
 };
 
+export const checkDatabaseStatus = async () => {
+  try {
+    const tables = await db.getAllAsync(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='transactions'"
+    );
+    
+    const tableExists = tables.length > 0;
+    console.log('Transactions table exists:', tableExists);
+    
+    if (tableExists) {
+      const columns = await db.getAllAsync("PRAGMA table_info(transactions)");
+      console.log('Transactions table columns:', columns);
+      
+      const countResult = await db.getAllAsync("SELECT COUNT(*) as count FROM transactions");
+      const recordCount = countResult[0].count;
+      
+      const result = {
+        tableExists: true,
+        columns: columns,
+        recordCount: recordCount
+      };
+      console.log('Database status:', result);
+      return result;
+    } else {
+      return { tableExists: false };
+    }
+  } catch (error) {
+    console.error('Error checking database status:', error);
+    return { tableExists: false, error: error.message };
+  }
+};
+
+export const testDatabaseOperations = async () => {
+  try {
+    console.log('Testing database operations...');
+    await initDB();
+  
+    const status = await checkDatabaseStatus();
+    console.log('Database status:', status);
+    
+    const testId = await addTransaction(
+      99.99, 
+      'income', 
+      'Test', 
+      'Android test transaction', 
+      new Date().toISOString()
+    );
+    console.log('Test transaction added with ID:', testId);
+    
+    const transactions = await getTransactions();
+    console.log('Total transactions after test:', transactions.length);
+    
+    if (testId) {
+      await deleteTransaction(testId);
+      console.log('Test transaction cleaned up');
+    }
+    
+    return { success: true, initialCount: status.recordCount, finalCount: transactions.length - 1 };
+  } catch (error) {
+    console.error('Database test failed:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export default db;
